@@ -1,0 +1,652 @@
+import {
+  loadClients,
+  upsertClient,
+  getClient,
+  deleteClient,
+  CLIENT_STATUSES,
+  REQUEST_STATUSES,
+  ASSET_KEYS,
+  assetCompletion,
+  missingAssets,
+  allRequests,
+  allNotes,
+  addRequest,
+  updateRequest,
+  addNote,
+  updateNote,
+  updateAssets,
+  dashboardMetrics,
+  recentActivity,
+} from './store.js';
+
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+let modalCallback = null;
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  try {
+    return new Date(d + (d.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  } catch {
+    return d;
+  }
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function statusBadge(status, map, prefix) {
+  const label = map[status] || status;
+  const cls = `${prefix}-${status.replace(/_/g, '-')}`;
+  return `<span class="badge badge-${cls}">${esc(label)}</span>`;
+}
+
+function clientStatusBadge(s) {
+  const map = { onboarding: 'onboarding', waiting_on_client: 'waiting', building: 'building', live: 'live' };
+  return `<span class="badge badge-${map[s] || 'onboarding'}">${esc(CLIENT_STATUSES[s] || s)}</span>`;
+}
+
+function requestStatusBadge(s) {
+  const map = { submitted: 'submitted', in_progress: 'progress', complete: 'complete' };
+  return `<span class="badge badge-${map[s] || 'submitted'}">${esc(REQUEST_STATUSES[s] || s)}</span>`;
+}
+
+function openModal(title, bodyHtml, onSave) {
+  $('#modal-title').textContent = title;
+  $('#modal-body').innerHTML = bodyHtml;
+  $('#modal-backdrop').classList.add('show');
+  modalCallback = onSave;
+}
+
+function closeModal() {
+  $('#modal-backdrop').classList.remove('show');
+  modalCallback = null;
+}
+
+function clientFormFields(c = {}) {
+  const opts = Object.entries(CLIENT_STATUSES)
+    .map(([k, v]) => `<option value="${k}" ${c.status === k ? 'selected' : ''}>${esc(v)}</option>`)
+    .join('');
+  return `
+    <div class="form-grid">
+      <div class="field"><label>Business Name</label><input name="businessName" value="${esc(c.businessName || '')}" required></div>
+      <div class="field"><label>Contact Name</label><input name="contactName" value="${esc(c.contactName || '')}"></div>
+      <div class="field"><label>Email</label><input name="email" type="email" value="${esc(c.email || '')}"></div>
+      <div class="field"><label>Phone</label><input name="phone" value="${esc(c.phone || '')}"></div>
+      <div class="field"><label>Website</label><input name="website" value="${esc(c.website || '')}" placeholder="https://"></div>
+      <div class="field"><label>Status</label><select name="status">${opts}</select></div>
+      <div class="field"><label>Date Signed</label><input name="dateSigned" type="date" value="${esc(c.dateSigned || '')}"></div>
+    </div>`;
+}
+
+function readClientForm(form) {
+  const fd = new FormData(form);
+  return {
+    businessName: fd.get('businessName')?.toString().trim() || '',
+    contactName: fd.get('contactName')?.toString().trim() || '',
+    email: fd.get('email')?.toString().trim() || '',
+    phone: fd.get('phone')?.toString().trim() || '',
+    website: fd.get('website')?.toString().trim() || '',
+    status: fd.get('status')?.toString() || 'onboarding',
+    dateSigned: fd.get('dateSigned')?.toString() || new Date().toISOString().slice(0, 10),
+  };
+}
+
+function renderDashboard() {
+  const clients = loadClients();
+  const m = dashboardMetrics(clients);
+  const feed = recentActivity(clients);
+
+  return `
+    <div class="page-header">
+      <h1>Dashboard</h1>
+      <p>Client operations at a glance</p>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="num">${m.totalClients}</div><div class="lbl">Total Clients</div></div>
+      <div class="card"><div class="num">${m.activeProjects}</div><div class="lbl">Active Projects</div></div>
+      <div class="card"><div class="num">${m.waitingOnClient}</div><div class="lbl">Waiting On Client</div></div>
+      <div class="card"><div class="num">${m.openRequests}</div><div class="lbl">Open Update Requests</div></div>
+    </div>
+    <div class="panel">
+      <h2>Recent Activity</h2>
+      ${feed.length ? feed.map((e) => `
+        <div class="feed-item">
+          <div>${esc(e.text)}</div>
+          <div class="feed-time">${fmtDate(e.at)}</div>
+        </div>`).join('') : '<div class="empty">Activity will show here as you add clients, notes, and requests.</div>'}
+    </div>`;
+}
+
+function renderClientsList() {
+  const clients = loadClients().sort((a, b) => (b.dateSigned || '').localeCompare(a.dateSigned || ''));
+
+  const tableRows = clients.length ? clients.map((c) => `
+    <tr>
+      <td><a href="#/clients/${c.id}">${esc(c.businessName)}</a></td>
+      <td>${esc(c.contactName)}</td>
+      <td>${clientStatusBadge(c.status)}</td>
+      <td>${fmtDate(c.dateSigned)}</td>
+      <td><button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">No clients yet — tap Add Client to start.</td></tr>';
+
+  const mobileCards = clients.length ? clients.map((c) => `
+    <div class="list-card">
+      <div class="list-card-top">
+        <a href="#/clients/${c.id}" class="list-card-title">${esc(c.businessName)}</a>
+        ${clientStatusBadge(c.status)}
+      </div>
+      <div class="list-card-meta">${esc(c.contactName)} · Signed ${fmtDate(c.dateSigned)}</div>
+      <div class="list-card-actions">
+        <a href="#/clients/${c.id}" class="btn btn-primary btn-sm">View</a>
+        <button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No clients yet — tap Add Client to start.</div>';
+
+  return `
+    <div class="page-header">
+      <h1>Clients</h1>
+      <p>Manage signed clients and project status</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-add-client">+ Add Client</button>
+    </div>
+    <div class="panel desktop-table table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>Contact</th>
+            <th>Status</th>
+            <th>Signed</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div class="mobile-list list-cards">${mobileCards}</div>`;
+}
+
+function renderAssetsPage() {
+  const clients = loadClients();
+
+  if (!clients.length) {
+    return `
+      <div class="page-header">
+        <h1>Assets</h1>
+        <p>Per-client asset checklist and completion</p>
+      </div>
+      <div class="empty panel">Add a client first, then track their assets here.</div>`;
+  }
+
+  return `
+    <div class="page-header">
+      <h1>Assets</h1>
+      <p>Per-client asset checklist and completion</p>
+    </div>
+    <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+      ${clients.map((c) => {
+        const { pct } = assetCompletion(c.assets);
+        const missing = missingAssets(c.assets);
+        return `
+          <div class="card" style="text-align:left;">
+            <div style="font-weight:700;margin-bottom:4px;"><a href="#/clients/${c.id}/assets">${esc(c.businessName)}</a></div>
+            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div style="font-size:0.85rem;color:var(--purple-light);font-weight:700;">${pct}% complete</div>
+            ${missing.length
+              ? `<div style="font-size:0.78rem;color:var(--muted);margin-top:8px;">Missing: ${esc(missing.join(', '))}</div>`
+              : '<div style="font-size:0.78rem;color:var(--green);margin-top:8px;">All assets received</div>'}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderRequestsPage() {
+  const clients = loadClients();
+  const requests = allRequests(clients);
+
+  const tableRows = requests.length ? requests.map((r) => `
+    <tr>
+      <td><a href="#/clients/${r.clientId}/requests">${esc(r.clientName)}</a></td>
+      <td>${esc(r.title)}</td>
+      <td>${requestStatusBadge(r.status)}</td>
+      <td>${fmtDate(r.dateSubmitted)}</td>
+      <td><button class="btn btn-ghost btn-sm" data-update-request="${r.clientId}:${r.id}">Update</button></td>
+    </tr>`).join('') : '<tr><td colspan="5" class="empty">No requests yet.</td></tr>';
+
+  const mobileCards = requests.length ? requests.map((r) => `
+    <div class="list-card">
+      <div class="list-card-top">
+        <span class="list-card-title">${esc(r.title)}</span>
+        ${requestStatusBadge(r.status)}
+      </div>
+      <div class="list-card-meta">
+        <a href="#/clients/${r.clientId}/requests">${esc(r.clientName)}</a>
+        · ${fmtDate(r.dateSubmitted)}
+      </div>
+      <div class="list-card-actions">
+        <button class="btn btn-ghost btn-sm" data-update-request="${r.clientId}:${r.id}">Update Status</button>
+      </div>
+    </div>`).join('') : '<div class="empty">No requests yet.</div>';
+
+  return `
+    <div class="page-header">
+      <h1>Update Requests</h1>
+      <p>Client website change requests</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-add-request">+ Create Request</button>
+    </div>
+    <div class="panel desktop-table table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Client</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Submitted</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>
+    <div class="mobile-list list-cards">${mobileCards}</div>`;
+}
+
+function renderNotesPage() {
+  const clients = loadClients();
+  const notes = allNotes(clients);
+
+  return `
+    <div class="page-header">
+      <h1>Notes</h1>
+      <p>Internal notes per client</p>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btn-add-note">+ Add Note</button>
+    </div>
+    <div class="panel">
+      ${notes.length ? notes.map((n) => `
+        <div class="note-item">
+          <div class="note-meta">
+            <a href="#/clients/${n.clientId}/notes">${esc(n.clientName)}</a>
+            · ${fmtDateTime(n.updatedAt)}
+            <button class="btn btn-ghost btn-sm" style="margin-left:8px;" data-edit-note="${n.clientId}:${n.id}">Edit</button>
+          </div>
+          <div class="note-body">${esc(n.text)}</div>
+        </div>`).join('') : '<div class="empty">No notes yet</div>'}
+    </div>`;
+}
+
+function renderAssetChecklist(client, editable = true) {
+  const { pct } = assetCompletion(client.assets);
+  const missing = missingAssets(client.assets);
+  return `
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:700;color:var(--purple-light);">${pct}% complete</span>
+        ${missing.length ? `<span style="font-size:0.8rem;color:var(--muted);">Missing: ${esc(missing.join(', '))}</span>` : ''}
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+    ${ASSET_KEYS.map(({ key, label }) => `
+      <div class="asset-row">
+        <span>${esc(label)}</span>
+        ${editable
+          ? `<input type="checkbox" class="asset-check" data-asset-key="${key}" ${client.assets?.[key] ? 'checked' : ''}>`
+          : `<span class="badge ${client.assets?.[key] ? 'badge-live' : 'badge-waiting'}">${client.assets?.[key] ? '✓' : '—'}</span>`}
+      </div>`).join('')}`;
+}
+
+function renderClientDetail(id, tab = 'overview') {
+  const client = getClient(id);
+  if (!client) {
+    return `<div class="empty">Client not found. <a href="#/clients">Back to clients</a></div>`;
+  }
+
+  const { pct } = assetCompletion(client.assets);
+  const openReqs = (client.requests || []).filter((r) => r.status !== 'complete');
+  const recentNotes = [...(client.notes || [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 3);
+
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'assets', label: 'Assets' },
+    { id: 'requests', label: 'Requests' },
+    { id: 'notes', label: 'Notes' },
+  ];
+
+  let tabContent = '';
+
+  if (tab === 'overview') {
+    tabContent = `
+      <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin-bottom:20px;">
+        <div class="card"><div class="num">${pct}%</div><div class="lbl">Assets</div></div>
+        <div class="card"><div class="num">${openReqs.length}</div><div class="lbl">Open Requests</div></div>
+        <div class="card"><div class="num">${(client.notes || []).length}</div><div class="lbl">Notes</div></div>
+      </div>
+      <div class="panel">
+        <h2>Client Information</h2>
+        <div class="info-grid">
+          <div><div class="info-label">Contact</div><div class="info-value">${esc(client.contactName) || '—'}</div></div>
+          <div><div class="info-label">Email</div><div class="info-value">${esc(client.email) || '—'}</div></div>
+          <div><div class="info-label">Phone</div><div class="info-value">${esc(client.phone) || '—'}</div></div>
+          <div><div class="info-label">Website</div><div class="info-value">${client.website ? `<a href="${esc(client.website)}" target="_blank" rel="noopener">${esc(client.website)}</a>` : '—'}</div></div>
+          <div><div class="info-label">Status</div><div class="info-value">${clientStatusBadge(client.status)}</div></div>
+          <div><div class="info-label">Date Signed</div><div class="info-value">${fmtDate(client.dateSigned)}</div></div>
+        </div>
+        <div class="btn-row" style="margin-top:16px;">
+          <button class="btn btn-ghost btn-sm" id="btn-edit-client-detail">Edit Client</button>
+        </div>
+      </div>
+      ${openReqs.length ? `
+        <div class="panel">
+          <h2>Open Requests</h2>
+          ${openReqs.map((r) => `
+            <div class="feed-item">
+              <div>${esc(r.title)} ${requestStatusBadge(r.status)}</div>
+              <div class="feed-time">${esc(r.description)}</div>
+            </div>`).join('')}
+        </div>` : ''}
+      ${recentNotes.length ? `
+        <div class="panel">
+          <h2>Recent Notes</h2>
+          ${recentNotes.map((n) => `
+            <div class="note-item">
+              <div class="note-meta">${fmtDateTime(n.updatedAt)}</div>
+              <div class="note-body">${esc(n.text)}</div>
+            </div>`).join('')}
+        </div>` : ''}`;
+  } else if (tab === 'assets') {
+    tabContent = `<div class="panel"><h2>Asset Checklist</h2>${renderAssetChecklist(client)}</div>`;
+  } else if (tab === 'requests') {
+    const reqs = [...(client.requests || [])].sort((a, b) => (b.dateSubmitted || '').localeCompare(a.dateSubmitted || ''));
+    tabContent = `
+      <div class="btn-row"><button class="btn btn-primary btn-sm" id="btn-add-request-client">+ New Request</button></div>
+      <div class="panel">
+        ${reqs.length ? reqs.map((r) => `
+          <div class="feed-item">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+              <strong>${esc(r.title)}</strong>
+              ${requestStatusBadge(r.status)}
+            </div>
+            <div class="feed-time">${fmtDate(r.dateSubmitted)}</div>
+            <p style="margin-top:8px;color:var(--muted);font-size:0.88rem;">${esc(r.description)}</p>
+            <button class="btn btn-ghost btn-sm" data-update-request="${client.id}:${r.id}" style="margin-top:8px;">Update Status</button>
+          </div>`).join('') : '<div class="empty">No requests for this client</div>'}
+      </div>`;
+  } else if (tab === 'notes') {
+    const notes = [...(client.notes || [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    tabContent = `
+      <div class="btn-row"><button class="btn btn-primary btn-sm" id="btn-add-note-client">+ Add Note</button></div>
+      <div class="panel">
+        ${notes.length ? notes.map((n) => `
+          <div class="note-item">
+            <div class="note-meta">
+              ${fmtDateTime(n.updatedAt)}
+              <button class="btn btn-ghost btn-sm" data-edit-note="${client.id}:${n.id}">Edit</button>
+            </div>
+            <div class="note-body">${esc(n.text)}</div>
+          </div>`).join('') : '<div class="empty">No notes yet</div>'}
+      </div>`;
+  }
+
+  return `
+    <a href="#/clients" class="back-link">← All Clients</a>
+    <div class="page-header">
+      <h1>${esc(client.businessName)}</h1>
+      <p>${clientStatusBadge(client.status)} · Signed ${fmtDate(client.dateSigned)}</p>
+    </div>
+    <div class="tabs">
+      ${tabs.map((t) => `
+        <button class="tab ${t.id === tab ? 'active' : ''}" data-tab="${t.id}">${t.label}</button>`).join('')}
+    </div>
+    ${tabContent}`;
+}
+
+function parseRoute() {
+  const hash = location.hash.slice(1) || '/';
+  const parts = hash.split('/').filter(Boolean);
+  return parts;
+}
+
+function setActiveNav(route) {
+  const page = route[0] || 'dashboard';
+  $$('[data-nav]').forEach((a) => {
+    const active = a.dataset.nav === page
+      || (a.dataset.nav === 'clients' && page === 'clients');
+    a.classList.toggle('active', active);
+  });
+}
+
+function render() {
+  const route = parseRoute();
+  const main = $('#main-content');
+  setActiveNav(route);
+
+  if (!route.length || route[0] === 'dashboard') {
+    main.innerHTML = renderDashboard();
+  } else if (route[0] === 'clients' && route.length === 1) {
+    main.innerHTML = renderClientsList();
+    bindClientsList();
+  } else if (route[0] === 'clients' && route.length >= 2) {
+    const tab = route[2] || 'overview';
+    main.innerHTML = renderClientDetail(route[1], tab);
+    bindClientDetail(route[1], tab);
+  } else if (route[0] === 'assets') {
+    main.innerHTML = renderAssetsPage();
+  } else if (route[0] === 'requests') {
+    main.innerHTML = renderRequestsPage();
+    bindRequestsPage();
+  } else if (route[0] === 'notes') {
+    main.innerHTML = renderNotesPage();
+    bindNotesPage();
+  } else {
+    main.innerHTML = renderDashboard();
+  }
+}
+
+function showClientModal(existing) {
+  openModal(existing ? 'Edit Client' : 'Add Client', '', () => {
+    const f = $('#modal-body form');
+    const data = readClientForm(f);
+    if (!data.businessName) return false;
+    upsertClient(existing ? { ...data, id: existing.id } : data);
+    closeModal();
+    render();
+    return true;
+  });
+  $('#modal-body').innerHTML = `<form>${clientFormFields(existing)}</form>`;
+}
+
+function showRequestModal(clientId = null, existing = null) {
+  const clients = loadClients();
+  const clientOpts = clients.map((c) =>
+    `<option value="${c.id}" ${(clientId || existing?.clientId) === c.id ? 'selected' : ''}>${esc(c.businessName)}</option>`
+  ).join('');
+  const statusOpts = Object.entries(REQUEST_STATUSES)
+    .map(([k, v]) => `<option value="${k}" ${existing?.status === k ? 'selected' : ''}>${esc(v)}</option>`)
+    .join('');
+
+  openModal(existing ? 'Update Request' : 'Create Request', '', () => {
+    const f = $('#modal-body form');
+    const fd = new FormData(f);
+    const cid = fd.get('clientId')?.toString();
+    const title = fd.get('title')?.toString().trim();
+    if (!cid || !title) return false;
+    if (existing) {
+      updateRequest(cid, existing.id, {
+        title,
+        description: fd.get('description')?.toString().trim() || '',
+        status: fd.get('status')?.toString() || 'submitted',
+      });
+    } else {
+      addRequest(cid, {
+        title,
+        description: fd.get('description')?.toString().trim() || '',
+        status: fd.get('status')?.toString() || 'submitted',
+      });
+    }
+    closeModal();
+    render();
+    return true;
+  });
+
+  $('#modal-body').innerHTML = `
+    <form>
+      <div class="form-grid" style="grid-template-columns:1fr;">
+        <div class="field"><label>Client</label><select name="clientId" ${existing ? 'disabled' : ''}>${clientOpts}</select></div>
+        <div class="field"><label>Request Title</label><input name="title" value="${esc(existing?.title || '')}" required></div>
+        <div class="field"><label>Description</label><textarea name="description">${esc(existing?.description || '')}</textarea></div>
+        <div class="field"><label>Status</label><select name="status">${statusOpts}</select></div>
+      </div>
+    </form>`;
+}
+
+function showNoteModal(clientId = null, existing = null) {
+  const clients = loadClients();
+  const clientOpts = clients.map((c) =>
+    `<option value="${c.id}" ${(clientId || existing?.clientId) === c.id ? 'selected' : ''}>${esc(c.businessName)}</option>`
+  ).join('');
+
+  openModal(existing ? 'Edit Note' : 'Add Note', '', () => {
+    const f = $('#modal-body form');
+    const fd = new FormData(f);
+    const cid = fd.get('clientId')?.toString();
+    const text = fd.get('text')?.toString().trim();
+    if (!cid || !text) return false;
+    if (existing) {
+      updateNote(cid, existing.id, text);
+    } else {
+      addNote(cid, text);
+    }
+    closeModal();
+    render();
+    return true;
+  });
+
+  $('#modal-body').innerHTML = `
+    <form>
+      <div class="form-grid" style="grid-template-columns:1fr;">
+        ${existing ? '' : `<div class="field"><label>Client</label><select name="clientId">${clientOpts}</select></div>`}
+        ${existing ? `<input type="hidden" name="clientId" value="${existing.clientId}">` : ''}
+        <div class="field"><label>Note</label><textarea name="text" required>${esc(existing?.text || '')}</textarea></div>
+      </div>
+    </form>`;
+}
+
+function bindClientsList() {
+  $('#btn-add-client')?.addEventListener('click', () => showClientModal());
+  $$('[data-edit-client]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const c = getClient(btn.dataset.editClient);
+      if (c) showClientModal(c);
+    });
+  });
+}
+
+function bindRequestsPage() {
+  $('#btn-add-request')?.addEventListener('click', () => showRequestModal());
+  $$('[data-update-request]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [cid, rid] = btn.dataset.updateRequest.split(':');
+      const c = getClient(cid);
+      const r = c?.requests?.find((x) => x.id === rid);
+      if (r) showRequestModal(cid, { ...r, clientId: cid });
+    });
+  });
+}
+
+function bindNotesPage() {
+  $('#btn-add-note')?.addEventListener('click', () => showNoteModal());
+  $$('[data-edit-note]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [cid, nid] = btn.dataset.editNote.split(':');
+      const c = getClient(cid);
+      const n = c?.notes?.find((x) => x.id === nid);
+      if (n) showNoteModal(cid, { ...n, clientId: cid });
+    });
+  });
+}
+
+function bindClientDetail(clientId, tab) {
+  $$('[data-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      location.hash = `#/clients/${clientId}/${btn.dataset.tab}`;
+    });
+  });
+
+  $('#btn-edit-client-detail')?.addEventListener('click', () => {
+    const c = getClient(clientId);
+    if (c) showClientModal(c);
+  });
+
+  $$('.asset-check').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const key = cb.dataset.assetKey;
+      const c = getClient(clientId);
+      updateAssets(clientId, { [key]: cb.checked });
+    });
+  });
+
+  $('#btn-add-request-client')?.addEventListener('click', () => showRequestModal(clientId));
+  $('#btn-add-note-client')?.addEventListener('click', () => showNoteModal(clientId));
+
+  $$('[data-update-request]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [cid, rid] = btn.dataset.updateRequest.split(':');
+      const c = getClient(cid);
+      const r = c?.requests?.find((x) => x.id === rid);
+      if (r) showRequestModal(cid, { ...r, clientId: cid });
+    });
+  });
+
+  $$('[data-edit-note]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [cid, nid] = btn.dataset.editNote.split(':');
+      const c = getClient(cid);
+      const n = c?.notes?.find((x) => x.id === nid);
+      if (n) showNoteModal(cid, { ...n, clientId: cid });
+    });
+  });
+}
+
+function init() {
+  loadClients();
+
+  window.addEventListener('hashchange', render);
+  render();
+
+  $('#modal-save')?.addEventListener('click', () => {
+    if (modalCallback) modalCallback();
+  });
+  $('#modal-cancel')?.addEventListener('click', closeModal);
+  $('#modal-backdrop')?.addEventListener('click', (e) => {
+    if (e.target.id === 'modal-backdrop') closeModal();
+  });
+
+  document.body.addEventListener('click', (e) => {
+    const link = e.target.closest('[data-nav]');
+    if (link) window.scrollTo(0, 0);
+  });
+}
+
+init();

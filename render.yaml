@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ascend-atlas
+    runtime: static
+    staticPublishPath: .
+    buildCommand: ""
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
