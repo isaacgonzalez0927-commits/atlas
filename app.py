@@ -179,6 +179,34 @@ def api_migrate():
     return jsonify({"ok": True, "imported": count})
 
 
+@app.get("/api/export")
+def api_export():
+    err = _require_auth()
+    if err:
+        return err
+    from datetime import datetime, timezone
+
+    return jsonify({
+        "version": 1,
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "clients": db.list_clients(),
+    })
+
+
+@app.post("/api/restore")
+def api_restore():
+    """Restore from a backup file (replaces all current data)."""
+    err = _require_auth()
+    if err:
+        return err
+    payload = request.get_json(silent=True) or {}
+    clients = payload.get("clients") or []
+    if not clients:
+        return jsonify({"error": "no_clients"}), 400
+    count = db.restore_clients(clients)
+    return jsonify({"ok": True, "restored": count})
+
+
 @app.get("/")
 def index():
     return send_from_directory(HERE, "index.html")

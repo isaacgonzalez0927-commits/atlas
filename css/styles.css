@@ -97,6 +97,32 @@ a:hover { color: var(--purple-bright); }
   color: #fff;
 }
 
+.sidebar-foot {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.foot-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.foot-btn:hover {
+  color: var(--purple-light);
+  background: rgba(124, 58, 237, 0.1);
+}
+
 /* Mobile header + bottom nav (hidden on desktop) */
 .mobile-header,
 .bottom-nav { display: none; }

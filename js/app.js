@@ -21,6 +21,8 @@ import {
   verifyAuth,
   clearAuthCode,
   getAuthCode,
+  exportBackup,
+  importBackup,
 } from './store.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -171,6 +173,16 @@ function renderDashboard() {
           <div>${esc(e.text)}</div>
           <div class="feed-time">${fmtDate(e.at)}</div>
         </div>`).join('') : '<div class="empty">Activity will show here as you add clients, notes, and requests.</div>'}
+    </div>
+    <div class="panel">
+      <h2>Backup</h2>
+      <p style="color:var(--muted);font-size:0.85rem;line-height:1.5;margin-bottom:14px;">
+        Export your data regularly — especially on the free Render plan before any deploy.
+      </p>
+      <div class="btn-row" style="margin-bottom:0;">
+        <button class="btn btn-primary btn-sm" id="btn-export-backup">Export Backup</button>
+        <button class="btn btn-ghost btn-sm" id="btn-import-backup">Import Backup</button>
+      </div>
     </div>`;
 }
 
@@ -484,6 +496,7 @@ async function render() {
 
   if (!route.length || route[0] === 'dashboard') {
     main.innerHTML = renderDashboard();
+    bindBackupButtons();
   } else if (route[0] === 'clients' && route.length === 1) {
     main.innerHTML = renderClientsList();
     bindClientsList();
@@ -523,6 +536,58 @@ async function startApp() {
   }
 }
 
+function serverErrorHtml(reason) {
+  const port = window.location.port || '5001';
+  const host = window.location.hostname;
+  const localUrl = `http://${host === 'localhost' || host === '127.0.0.1' ? 'localhost' : host}:${port}`;
+
+  if (reason === 'file_protocol') {
+    return `
+      <div class="empty panel">
+        <p><strong>Atlas must run through the server.</strong></p>
+        <p style="margin-top:12px;color:var(--muted);">Don't open the HTML file directly. In Terminal:</p>
+        <pre style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:10px;overflow-x:auto;font-size:0.8rem;">cd atlas
+python3 app.py</pre>
+        <p style="margin-top:12px;">Then open <a href="http://localhost:5001">http://localhost:5001</a></p>
+      </div>`;
+  }
+
+  if (reason === 'no_api') {
+    return `
+      <div class="empty panel">
+        <p><strong>Backend not deployed yet.</strong></p>
+        <p style="margin-top:12px;color:var(--muted);line-height:1.5;">
+          This URL is serving files only — the Flask API isn't running.
+          On Render, create a <strong>Web Service</strong> (Python), not a Static Site.
+        </p>
+        <p style="margin-top:12px;color:var(--muted);">Build: <code>pip install -r requirements.txt</code><br>
+        Start: <code>gunicorn app:app</code><br>
+        Env: <code>ATLAS_CODE</code> = your password</p>
+      </div>`;
+  }
+
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return `
+      <div class="empty panel">
+        <p><strong>Server not running.</strong></p>
+        <p style="margin-top:12px;color:var(--muted);">Start Atlas in Terminal:</p>
+        <pre style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:10px;overflow-x:auto;font-size:0.8rem;">cd atlas
+python3 app.py</pre>
+        <p style="margin-top:12px;">Then open <a href="${localUrl}">${localUrl}</a></p>
+        <p style="margin-top:8px;color:var(--muted);font-size:0.85rem;">(Not port 8765 — that old server has no API.)</p>
+      </div>`;
+  }
+
+  return `
+    <div class="empty panel">
+      <p><strong>Could not reach Atlas server.</strong></p>
+      <p style="margin-top:12px;color:var(--muted);line-height:1.5;">
+        Render may still be waking up (free tier — wait 30s and refresh),
+        or the service needs to be a Python Web Service with the latest code pushed.
+      </p>
+    </div>`;
+}
+
 async function boot() {
   try {
     const health = await checkHealth();
@@ -531,9 +596,13 @@ async function boot() {
       return;
     }
     await startApp();
-  } catch {
+  } catch (err) {
     const main = $('#main-content');
-    if (main) main.innerHTML = '<div class="empty panel">Could not reach Atlas server.</div>';
+    if (main) {
+      hideLoginScreen();
+      $('#app-shell')?.classList.remove('hidden');
+      main.innerHTML = serverErrorHtml(err.message);
+    }
   }
 }
 
@@ -721,6 +790,20 @@ function bindClientDetail(clientId, tab) {
   });
 }
 
+function bindBackupButtons() {
+  $('#btn-export-backup')?.addEventListener('click', async () => {
+    try {
+      await exportBackup();
+    } catch {
+      alert('Export failed. Check your connection.');
+    }
+  });
+
+  $('#btn-import-backup')?.addEventListener('click', () => {
+    $('#import-file')?.click();
+  });
+}
+
 function init() {
   window.addEventListener('hashchange', () => render());
 
@@ -751,6 +834,38 @@ function init() {
   });
 
   boot();
+
+  bindBackupButtons();
+
+  $('#sidebar-export')?.addEventListener('click', async () => {
+    try {
+      await exportBackup();
+    } catch {
+      alert('Export failed.');
+    }
+  });
+
+  $('#sidebar-import')?.addEventListener('click', () => {
+    $('#import-file')?.click();
+  });
+
+  $('#import-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const count = loadClients().length;
+    const msg = count
+      ? `Replace all ${count} client(s) with this backup? This cannot be undone.`
+      : 'Import clients from this backup file?';
+    if (!confirm(msg)) return;
+    try {
+      await importBackup(file);
+      await render();
+      alert('Backup restored successfully.');
+    } catch {
+      alert('Import failed. Make sure the file is a valid Atlas backup (.json).');
+    }
+  });
 }
 
 init();

@@ -63,7 +63,22 @@ async function api(method, path, body) {
 }
 
 export async function checkHealth() {
-  return api('GET', '/api/health');
+  if (window.location.protocol === 'file:') {
+    throw new Error('file_protocol');
+  }
+  let res;
+  try {
+    res = await fetch('/api/health');
+  } catch {
+    throw new Error('network');
+  }
+  if (res.status === 404) {
+    throw new Error('no_api');
+  }
+  if (!res.ok) {
+    throw new Error('health_failed');
+  }
+  return res.json();
 }
 
 export async function verifyAuth(code) {
@@ -227,4 +242,28 @@ export function recentActivity(clients, limit = 12) {
     .filter((e) => e.at)
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, limit);
+}
+
+export async function exportBackup() {
+  const data = await api('GET', '/api/export');
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const date = new Date().toISOString().slice(0, 10);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `atlas-backup-${date}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export async function importBackup(file) {
+  const text = await file.text();
+  const parsed = JSON.parse(text);
+  const clients = Array.isArray(parsed) ? parsed : (parsed.clients || []);
+  if (!clients.length) throw new Error('no_clients');
+  await api('POST', '/api/restore', { clients });
+  await refreshClients();
 }

@@ -44,6 +44,10 @@
         <a href="#/requests" data-nav="requests">Update Requests</a>
         <a href="#/notes" data-nav="notes">Notes</a>
       </nav>
+      <div class="sidebar-foot">
+        <button type="button" class="foot-btn" id="sidebar-export">Export backup</button>
+        <button type="button" class="foot-btn" id="sidebar-import">Import backup</button>
+      </div>
     </aside>
 
     <main class="main" id="main-content"></main>
@@ -72,6 +76,8 @@
     </a>
   </nav>
   </div>
+
+  <input type="file" id="import-file" accept=".json,application/json" hidden>
 
   <div class="modal-backdrop" id="modal-backdrop">
     <div class="modal" role="dialog" aria-modal="true">

@@ -340,26 +340,46 @@ def import_clients(clients: list[dict]) -> int:
     """Bulk import (e.g. localStorage migration). Skips if DB already has clients."""
     if list_clients():
         return 0
+    return restore_clients(clients)
+
+
+def clear_all() -> None:
+    with _DB_LOCK:
+        conn = _conn()
+        conn.execute("DELETE FROM notes")
+        conn.execute("DELETE FROM requests")
+        conn.execute("DELETE FROM clients")
+        conn.commit()
+        conn.close()
+
+
+def _import_single_client(c: dict) -> None:
+    cid = c.get("id") or str(uuid.uuid4())
+    create_client({**c, "id": cid})
+    for r in c.get("requests") or []:
+        add_request(cid, r)
+    for n in c.get("notes") or []:
+        with _DB_LOCK:
+            conn = _conn()
+            conn.execute(
+                "INSERT INTO notes (id, client_id, text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (
+                    n.get("id") or str(uuid.uuid4()),
+                    cid,
+                    n.get("text", ""),
+                    n.get("createdAt") or _now_iso(),
+                    n.get("updatedAt") or _now_iso(),
+                ),
+            )
+            conn.commit()
+            conn.close()
+
+
+def restore_clients(clients: list[dict]) -> int:
+    """Replace all data with a backup snapshot."""
+    clear_all()
     count = 0
     for c in clients:
-        cid = c.get("id") or str(uuid.uuid4())
-        create_client(c)
-        for r in c.get("requests") or []:
-            add_request(cid, r)
-        for n in c.get("notes") or []:
-            with _DB_LOCK:
-                conn = _conn()
-                conn.execute(
-                    "INSERT INTO notes (id, client_id, text, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                    (
-                        n.get("id") or str(uuid.uuid4()),
-                        cid,
-                        n.get("text", ""),
-                        n.get("createdAt") or _now_iso(),
-                        n.get("updatedAt") or _now_iso(),
-                    ),
-                )
-                conn.commit()
-                conn.close()
+        _import_single_client(c)
         count += 1
     return count
