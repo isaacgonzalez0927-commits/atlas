@@ -2,7 +2,6 @@ import {
   loadClients,
   upsertClient,
   getClient,
-  deleteClient,
   CLIENT_STATUSES,
   REQUEST_STATUSES,
   ASSET_KEYS,
@@ -17,12 +16,52 @@ import {
   updateAssets,
   dashboardMetrics,
   recentActivity,
+  initStore,
+  checkHealth,
+  verifyAuth,
+  clearAuthCode,
+  getAuthCode,
 } from './store.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
 let modalCallback = null;
+let _booted = false;
+
+function showLoading() {
+  const main = $('#main-content');
+  if (main) main.innerHTML = '<div class="loading">Loading…</div>';
+}
+
+function showLoginScreen(authRequired) {
+  const el = $('#login-screen');
+  if (el) {
+    el.classList.add('show');
+    const hint = $('#login-hint');
+    if (hint) {
+      hint.textContent = authRequired
+        ? 'Enter your Atlas access code to continue.'
+        : 'Starting Atlas…';
+    }
+    const form = $('#login-form');
+    if (form) form.style.display = authRequired ? '' : 'none';
+  }
+  $('#app-shell')?.classList.add('hidden');
+}
+
+function hideLoginScreen() {
+  $('#login-screen')?.classList.remove('show');
+  $('#app-shell')?.classList.remove('hidden');
+}
+
+function showError(msg) {
+  const el = $('#login-error');
+  if (el) {
+    el.textContent = msg;
+    el.style.display = msg ? 'block' : 'none';
+  }
+}
 
 function esc(s) {
   const d = document.createElement('div');
@@ -437,7 +476,8 @@ function setActiveNav(route) {
   });
 }
 
-function render() {
+async function render() {
+  if (!_booted) return;
   const route = parseRoute();
   const main = $('#main-content');
   setActiveNav(route);
@@ -462,17 +502,55 @@ function render() {
   } else {
     main.innerHTML = renderDashboard();
   }
+  window.scrollTo(0, 0);
+}
+
+async function startApp() {
+  showLoading();
+  try {
+    await initStore();
+    _booted = true;
+    hideLoginScreen();
+    await render();
+  } catch (err) {
+    if (err.message === 'unauthorized') {
+      clearAuthCode();
+      const health = await checkHealth();
+      showLoginScreen(health.auth_required);
+    } else {
+      $('#main-content').innerHTML = '<div class="empty panel">Could not connect to Atlas. Is the server running?</div>';
+    }
+  }
+}
+
+async function boot() {
+  try {
+    const health = await checkHealth();
+    if (health.auth_required && !getAuthCode()) {
+      showLoginScreen(true);
+      return;
+    }
+    await startApp();
+  } catch {
+    const main = $('#main-content');
+    if (main) main.innerHTML = '<div class="empty panel">Could not reach Atlas server.</div>';
+  }
 }
 
 function showClientModal(existing) {
-  openModal(existing ? 'Edit Client' : 'Add Client', '', () => {
+  openModal(existing ? 'Edit Client' : 'Add Client', '', async () => {
     const f = $('#modal-body form');
     const data = readClientForm(f);
     if (!data.businessName) return false;
-    upsertClient(existing ? { ...data, id: existing.id } : data);
-    closeModal();
-    render();
-    return true;
+    try {
+      await upsertClient(existing ? { ...data, id: existing.id } : data);
+      closeModal();
+      await render();
+      return true;
+    } catch {
+      alert('Could not save client. Check your connection.');
+      return false;
+    }
   });
   $('#modal-body').innerHTML = `<form>${clientFormFields(existing)}</form>`;
 }
@@ -486,28 +564,33 @@ function showRequestModal(clientId = null, existing = null) {
     .map(([k, v]) => `<option value="${k}" ${existing?.status === k ? 'selected' : ''}>${esc(v)}</option>`)
     .join('');
 
-  openModal(existing ? 'Update Request' : 'Create Request', '', () => {
+  openModal(existing ? 'Update Request' : 'Create Request', '', async () => {
     const f = $('#modal-body form');
     const fd = new FormData(f);
-    const cid = fd.get('clientId')?.toString();
+    const cid = (existing ? existing.clientId : fd.get('clientId')?.toString()) || '';
     const title = fd.get('title')?.toString().trim();
     if (!cid || !title) return false;
-    if (existing) {
-      updateRequest(cid, existing.id, {
-        title,
-        description: fd.get('description')?.toString().trim() || '',
-        status: fd.get('status')?.toString() || 'submitted',
-      });
-    } else {
-      addRequest(cid, {
-        title,
-        description: fd.get('description')?.toString().trim() || '',
-        status: fd.get('status')?.toString() || 'submitted',
-      });
+    try {
+      if (existing) {
+        await updateRequest(cid, existing.id, {
+          title,
+          description: fd.get('description')?.toString().trim() || '',
+          status: fd.get('status')?.toString() || 'submitted',
+        });
+      } else {
+        await addRequest(cid, {
+          title,
+          description: fd.get('description')?.toString().trim() || '',
+          status: fd.get('status')?.toString() || 'submitted',
+        });
+      }
+      closeModal();
+      await render();
+      return true;
+    } catch {
+      alert('Could not save request.');
+      return false;
     }
-    closeModal();
-    render();
-    return true;
   });
 
   $('#modal-body').innerHTML = `
@@ -527,20 +610,25 @@ function showNoteModal(clientId = null, existing = null) {
     `<option value="${c.id}" ${(clientId || existing?.clientId) === c.id ? 'selected' : ''}>${esc(c.businessName)}</option>`
   ).join('');
 
-  openModal(existing ? 'Edit Note' : 'Add Note', '', () => {
+  openModal(existing ? 'Edit Note' : 'Add Note', '', async () => {
     const f = $('#modal-body form');
     const fd = new FormData(f);
     const cid = fd.get('clientId')?.toString();
     const text = fd.get('text')?.toString().trim();
     if (!cid || !text) return false;
-    if (existing) {
-      updateNote(cid, existing.id, text);
-    } else {
-      addNote(cid, text);
+    try {
+      if (existing) {
+        await updateNote(cid, existing.id, text);
+      } else {
+        await addNote(cid, text);
+      }
+      closeModal();
+      await render();
+      return true;
+    } catch {
+      alert('Could not save note.');
+      return false;
     }
-    closeModal();
-    render();
-    return true;
   });
 
   $('#modal-body').innerHTML = `
@@ -600,10 +688,14 @@ function bindClientDetail(clientId, tab) {
   });
 
   $$('.asset-check').forEach((cb) => {
-    cb.addEventListener('change', () => {
+    cb.addEventListener('change', async () => {
       const key = cb.dataset.assetKey;
-      const c = getClient(clientId);
-      updateAssets(clientId, { [key]: cb.checked });
+      try {
+        await updateAssets(clientId, { [key]: cb.checked });
+      } catch {
+        cb.checked = !cb.checked;
+        alert('Could not update asset.');
+      }
     });
   });
 
@@ -630,13 +722,10 @@ function bindClientDetail(clientId, tab) {
 }
 
 function init() {
-  loadClients();
+  window.addEventListener('hashchange', () => render());
 
-  window.addEventListener('hashchange', render);
-  render();
-
-  $('#modal-save')?.addEventListener('click', () => {
-    if (modalCallback) modalCallback();
+  $('#modal-save')?.addEventListener('click', async () => {
+    if (modalCallback) await modalCallback();
   });
   $('#modal-cancel')?.addEventListener('click', closeModal);
   $('#modal-backdrop')?.addEventListener('click', (e) => {
@@ -647,6 +736,21 @@ function init() {
     const link = e.target.closest('[data-nav]');
     if (link) window.scrollTo(0, 0);
   });
+
+  $('#login-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    showError('');
+    const code = $('#login-code')?.value?.trim() || '';
+    if (!code) return;
+    const ok = await verifyAuth(code);
+    if (!ok) {
+      showError('Invalid access code.');
+      return;
+    }
+    await startApp();
+  });
+
+  boot();
 }
 
 init();

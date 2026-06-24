@@ -13,6 +13,22 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+  <div class="login-screen" id="login-screen">
+    <div class="login-card">
+      <div class="brand">Atlas</div>
+      <p class="login-hint" id="login-hint">Enter your Atlas access code.</p>
+      <form id="login-form">
+        <div class="field">
+          <label for="login-code">Access Code</label>
+          <input id="login-code" type="password" autocomplete="current-password" placeholder="Your code" required>
+        </div>
+        <p class="login-error" id="login-error"></p>
+        <button class="btn btn-primary btn-block" type="submit">Enter Atlas</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-shell">
   <header class="mobile-header">
     <div class="mobile-brand">Atlas</div>
   </header>
@@ -55,6 +71,7 @@
       <span>Notes</span>
     </a>
   </nav>
+  </div>
 
   <div class="modal-backdrop" id="modal-backdrop">
     <div class="modal" role="dialog" aria-modal="true">
