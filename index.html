@@ -33,9 +33,10 @@
   <div id="app-shell">
     <header class="mobile-header">
       <div class="mobile-brand">Atlas</div>
-      <button type="button" class="theme-toggle" data-theme-toggle aria-label="Toggle theme">
-        <span data-theme-label>Dark mode</span>
-      </button>
+      <div class="theme-switch" role="group" aria-label="Appearance">
+        <button type="button" data-theme-opt="light" aria-pressed="true">Light</button>
+        <button type="button" data-theme-opt="dark" aria-pressed="false">Dark</button>
+      </div>
     </header>
 
     <div class="app">
@@ -50,9 +51,11 @@
           <a href="#/notes" data-nav="notes">Notes</a>
         </nav>
         <div class="sidebar-foot">
-          <button type="button" class="theme-toggle" data-theme-toggle>
-            <span data-theme-label>Dark mode</span>
-          </button>
+          <div class="theme-switch-label">Appearance</div>
+          <div class="theme-switch" role="group" aria-label="Appearance">
+            <button type="button" data-theme-opt="light" aria-pressed="true">Light</button>
+            <button type="button" data-theme-opt="dark" aria-pressed="false">Dark</button>
+          </div>
           <button type="button" class="foot-btn" id="sidebar-export">Export backup</button>
           <button type="button" class="foot-btn" id="sidebar-import">Import backup</button>
         </div>

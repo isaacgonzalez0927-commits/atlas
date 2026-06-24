@@ -261,7 +261,7 @@ function renderAssetsPage() {
           <div class="card" style="text-align:left;">
             <div style="font-weight:700;margin-bottom:4px;"><a href="#/clients/${c.id}/assets">${esc(c.businessName)}</a></div>
             <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
-            <div style="font-size:0.85rem;color:var(--purple-light);font-weight:700;">${pct}% complete</div>
+            <div style="font-size:0.85rem;color:var(--accent);font-weight:600;">${pct}% complete</div>
             ${missing.length
               ? `<div style="font-size:0.78rem;color:var(--muted);margin-top:8px;">Missing: ${esc(missing.join(', '))}</div>`
               : '<div style="font-size:0.78rem;color:var(--green);margin-top:8px;">All assets received</div>'}
@@ -354,7 +354,7 @@ function renderAssetChecklist(client, editable = true) {
   return `
     <div style="margin-bottom:16px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-weight:700;color:var(--purple-light);">${pct}% complete</span>
+        <span style="font-weight:600;color:var(--accent);">${pct}% complete</span>
         ${missing.length ? `<span style="font-size:0.8rem;color:var(--muted);">Missing: ${esc(missing.join(', '))}</span>` : ''}
       </div>
       <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
