@@ -207,6 +207,26 @@ def api_restore():
     return jsonify({"ok": True, "restored": count})
 
 
+@app.get("/manifest.webmanifest")
+def manifest():
+    return jsonify({
+        "name": "Atlas",
+        "short_name": "Atlas",
+        "description": "Ascend client management",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "portrait",
+        "background_color": "#f8f9fb",
+        "theme_color": "#f8f9fb",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
+    })
+
+
 @app.get("/")
 def index():
     return send_from_directory(HERE, "index.html")
