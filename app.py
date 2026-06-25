@@ -8,6 +8,8 @@ from pathlib import Path
 from flask import Flask, jsonify, request, send_from_directory
 
 import db
+import storage
+from atlas_icons import ATLAS_MANIFEST_ICONS
 
 HERE = Path(__file__).parent
 ATLAS_CODE = os.getenv("ATLAS_CODE", "").strip()
@@ -34,7 +36,20 @@ def _require_auth():
 def init_db_once():
     if not getattr(app, "_db_ready", False):
         db.init_db()
+        storage.bootstrap()
         app._db_ready = True
+
+
+@app.after_request
+def auto_save_after_api(response):
+    if (
+        request.method in ("POST", "PUT", "PATCH", "DELETE")
+        and request.path.startswith("/api/")
+        and response.status_code < 400
+        and request.path not in ("/api/health", "/api/auth/verify")
+    ):
+        storage.after_change(request.path)
+    return response
 
 
 @app.get("/api/health")
@@ -179,6 +194,14 @@ def api_migrate():
     return jsonify({"ok": True, "imported": count})
 
 
+@app.get("/api/storage")
+def api_storage():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify(storage.status())
+
+
 @app.get("/api/export")
 def api_export():
     err = _require_auth()
@@ -219,12 +242,23 @@ def manifest():
         "orientation": "portrait",
         "background_color": "#f8f9fb",
         "theme_color": "#f8f9fb",
-        "icons": [
-            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
-            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
-            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
-        ],
+        "icons": ATLAS_MANIFEST_ICONS,
     })
+
+
+@app.get("/apple-touch-icon.png")
+@app.get("/apple-touch-icon-precomposed.png")
+def apple_touch_icon():
+    pref = (request.headers.get("Sec-CH-Prefers-Color-Scheme") or "").lower()
+    name = "static/apple-touch-icon-dark.png" if pref == "dark" else "static/apple-touch-icon-light.png"
+    return send_from_directory(HERE, name)
+
+
+@app.get("/favicon.ico")
+def favicon():
+    pref = (request.headers.get("Sec-CH-Prefers-Color-Scheme") or "").lower()
+    name = "static/icon-192-dark.png" if pref == "dark" else "static/icon-192-light.png"
+    return send_from_directory(HERE, name)
 
 
 @app.get("/")

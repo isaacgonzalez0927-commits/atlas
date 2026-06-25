@@ -8,9 +8,20 @@ services:
     envVars:
       - key: ATLAS_CODE
         sync: false
+      - key: ATLAS_GITHUB_TOKEN
+        sync: false
+      - key: ATLAS_GITHUB_REPO
+        sync: false
       - key: PYTHON_VERSION
         value: "3.12.6"
 
-  # For persistent data across deploys, upgrade to Starter ($7/mo) and add:
-  # disk: { name: atlas-data, mountPath: /data, sizeGB: 1 }
-  # env: ATLAS_DB_PATH=/data/atlas.db
+# Auto-save: ATLAS_GITHUB_TOKEN + ATLAS_GITHUB_REPO=youruser/atlas-data
+# Or Starter + disk:
+#   plan: starter   # $7/mo
+#   disk:
+#     name: atlas-data
+#     mountPath: /data
+#     sizeGB: 1
+#   envVars:
+#     - key: ATLAS_DB_PATH
+#       value: /data/atlas.db
