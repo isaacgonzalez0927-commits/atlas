@@ -1,6 +1,7 @@
 import {
   loadClients,
   upsertClient,
+  deleteClient,
   getClient,
   CLIENT_STATUSES,
   REQUEST_STATUSES,
@@ -195,7 +196,8 @@ function renderClientsList() {
       <td>${esc(c.contactName)}</td>
       <td>${clientStatusBadge(c.status)}</td>
       <td>${fmtDate(c.dateSigned)}</td>
-      <td><button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button></td>
+      <td><button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button>
+          <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">Delete</button></td>
     </tr>`).join('') : '<tr><td colspan="5" class="empty">No clients yet — tap Add Client to start.</td></tr>';
 
   const mobileCards = clients.length ? clients.map((c) => `
@@ -208,6 +210,7 @@ function renderClientsList() {
       <div class="list-card-actions">
         <a href="#/clients/${c.id}" class="btn btn-primary btn-sm">View</a>
         <button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button>
+        <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">Delete</button>
       </div>
     </div>`).join('') : '<div class="empty">No clients yet — tap Add Client to start.</div>';
 
@@ -406,6 +409,7 @@ function renderClientDetail(id, tab = 'overview') {
         </div>
         <div class="btn-row" style="margin-top:16px;">
           <button class="btn btn-ghost btn-sm" id="btn-edit-client-detail">Edit Client</button>
+          <button class="btn btn-danger btn-sm" id="btn-delete-client-detail">Delete Client</button>
         </div>
       </div>
       ${openReqs.length ? `
@@ -718,6 +722,28 @@ function bindClientsList() {
       if (c) showClientModal(c);
     });
   });
+  $$('[data-delete-client]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const c = getClient(btn.dataset.deleteClient);
+      if (c) await confirmDeleteClient(c);
+    });
+  });
+}
+
+async function confirmDeleteClient(client) {
+  const name = client.businessName || 'this client';
+  if (!confirm(`Delete "${name}"? All requests and notes for this client will be removed. This cannot be undone.`)) {
+    return;
+  }
+  try {
+    await deleteClient(client.id);
+    location.hash = '#/clients';
+    await render();
+  } catch {
+    alert('Could not delete client. Check your connection.');
+  }
 }
 
 function bindRequestsPage() {
@@ -754,6 +780,11 @@ function bindClientDetail(clientId, tab) {
   $('#btn-edit-client-detail')?.addEventListener('click', () => {
     const c = getClient(clientId);
     if (c) showClientModal(c);
+  });
+
+  $('#btn-delete-client-detail')?.addEventListener('click', async () => {
+    const c = getClient(clientId);
+    if (c) await confirmDeleteClient(c);
   });
 
   $$('.asset-check').forEach((cb) => {
