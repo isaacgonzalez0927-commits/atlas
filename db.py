@@ -3,19 +3,16 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-HERE = Path(__file__).parent
-DATA_DIR = Path(__file__).parent / "data"
-DATA_DIR.mkdir(exist_ok=True)
+from paths import DATA_ROOT
 
-import os
-
-DB_PATH = Path(os.getenv("ATLAS_DB_PATH", str(DATA_DIR / "atlas.db")))
+DB_PATH = Path(os.getenv("ATLAS_DB_PATH", str(DATA_ROOT / "atlas.db")))
 
 _DB_LOCK = threading.Lock()
 

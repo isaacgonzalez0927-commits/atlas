@@ -24,7 +24,17 @@ import {
   getAuthCode,
   exportBackup,
   importBackup,
+  fetchDashboard,
+  fetchLeadHistory,
+  fetchLeadStats,
+  fetchLeadLearning,
+  fetchStorageStatus,
 } from './store.js';
+import {
+  renderLeadsPage,
+  bindLeadsPage,
+  initLeadsPageData,
+} from './leads.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -151,21 +161,31 @@ function readClientForm(form) {
   };
 }
 
-function renderDashboard() {
-  const clients = loadClients();
-  const m = dashboardMetrics(clients);
-  const feed = recentActivity(clients);
+function renderDashboardHtml(dash) {
+  const clients = dash?.clients || {};
+  const leads = dash?.leads || {};
+  const feed = recentActivity(loadClients());
 
   return `
     <div class="page-header">
       <h1>Dashboard</h1>
-      <p>Client operations at a glance</p>
+      <p>Ascend operations at a glance</p>
     </div>
     <div class="grid">
-      <div class="card"><div class="num">${m.totalClients}</div><div class="lbl">Total Clients</div></div>
-      <div class="card"><div class="num">${m.activeProjects}</div><div class="lbl">Active Projects</div></div>
-      <div class="card"><div class="num">${m.waitingOnClient}</div><div class="lbl">Waiting On Client</div></div>
-      <div class="card"><div class="num">${m.openRequests}</div><div class="lbl">Open Update Requests</div></div>
+      <div class="card"><div class="num">${leads.total ?? 0}</div><div class="lbl">Total Leads Called</div></div>
+      <div class="card"><div class="num">${leads.previews ?? 0}</div><div class="lbl">Previews</div></div>
+      <div class="card"><div class="num">${leads.clients ?? 0}</div><div class="lbl">Clients Won</div></div>
+      <div class="card"><div class="num">${leads.conversion_rate ?? 0}%</div><div class="lbl">Conversion Rate</div></div>
+      <div class="card"><div class="num">${clients.open_requests ?? 0}</div><div class="lbl">Open Updates</div></div>
+      <div class="card"><div class="num">${clients.active ?? 0}</div><div class="lbl">Active Clients</div></div>
+    </div>
+    <div class="panel">
+      <h2>Recent Calls</h2>
+      ${(dash?.recent_calls || []).length ? (dash.recent_calls).map((c) => `
+        <div class="feed-item">
+          <div>${esc(c.business_name)} — ${esc(c.outcome_label || c.outcome)}</div>
+          <div class="feed-time">${esc(c.city || '')} · Score ${c.score ?? '—'}</div>
+        </div>`).join('') : '<div class="empty">Call outcomes will appear here as Sebastien logs leads.</div>'}
     </div>
     <div class="panel">
       <h2>Recent Activity</h2>
@@ -173,16 +193,79 @@ function renderDashboard() {
         <div class="feed-item">
           <div>${esc(e.text)}</div>
           <div class="feed-time">${fmtDate(e.at)}</div>
-        </div>`).join('') : '<div class="empty">Activity will show here as you add clients, notes, and requests.</div>'}
+        </div>`).join('') : '<div class="empty">Client activity will show here.</div>'}
+    </div>`;
+}
+
+function renderAnalyticsHtml(stats, learning) {
+  const topInterest = (stats?.top_cities_interest || []).slice(0, 5);
+  const topClose = (stats?.top_cities_close || []).slice(0, 5);
+
+  return `
+    <div class="page-header">
+      <h1>Analytics</h1>
+      <p>Lead performance and learning insights</p>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="num">${stats?.total_calls ?? 0}</div><div class="lbl">Total Calls Logged</div></div>
+      <div class="card"><div class="num">${stats?.dead_interest ?? 0}%</div><div class="lbl">Dead Site Interest</div></div>
+      <div class="card"><div class="num">${stats?.no_interest ?? 0}%</div><div class="lbl">No Site Interest</div></div>
+      <div class="card"><div class="num">${learning?.active ? 'On' : 'Off'}</div><div class="lbl">Learning Active</div></div>
+    </div>
+    <div class="panel">
+      <h2>Top Cities — Interest Rate</h2>
+      ${topInterest.length ? `<table class="desktop-table"><thead><tr><th>City</th><th>Calls</th><th>Rate</th></tr></thead><tbody>
+        ${topInterest.map((r) => `<tr><td>${esc(r.city)}</td><td>${r.calls}</td><td>${r.rate}%</td></tr>`).join('')}
+      </tbody></table>` : '<div class="empty">Need more logged calls for city stats.</div>'}
+    </div>
+    <div class="panel">
+      <h2>Top Cities — Close Rate</h2>
+      ${topClose.length ? `<table class="desktop-table"><thead><tr><th>City</th><th>Calls</th><th>Rate</th></tr></thead><tbody>
+        ${topClose.map((r) => `<tr><td>${esc(r.city)}</td><td>${r.calls}</td><td>${r.rate}%</td></tr>`).join('')}
+      </tbody></table>` : '<div class="empty">Need more logged calls for close stats.</div>'}
+    </div>
+    <div class="panel">
+      <h2>Learning System</h2>
+      <p style="color:var(--muted);font-size:0.85rem;line-height:1.5">
+        ${learning?.active
+    ? `Learning from ${learning.total_calls} calls. Outcomes adjust future lead scores.`
+    : `Learning activates after ${learning?.min_calls ?? 10} logged calls.`}
+        ${learning?.openai_enabled ? ` OpenAI refinement available after ${learning.openai_min_calls} calls.` : ''}
+      </p>
+    </div>`;
+}
+
+function renderSettingsHtml(storage) {
+  return `
+    <div class="page-header">
+      <h1>Settings</h1>
+      <p>Backup, storage, and more</p>
+    </div>
+    <div class="panel">
+      <h2>Quick Links</h2>
+      <div class="btn-row">
+        <a class="btn btn-ghost btn-sm" href="#/assets">Assets</a>
+        <a class="btn btn-ghost btn-sm" href="#/notes">Notes</a>
+        <a class="btn btn-ghost btn-sm" href="#/analytics">Analytics</a>
+      </div>
     </div>
     <div class="panel">
       <h2>Backup</h2>
       <p style="color:var(--muted);font-size:0.85rem;line-height:1.5;margin-bottom:14px;">
-        Export your data regularly — especially on the free Render plan before any deploy.
+        Export includes clients, call outcomes, and lead history.
       </p>
       <div class="btn-row" style="margin-bottom:0;">
         <button class="btn btn-primary btn-sm" id="btn-export-backup">Export Backup</button>
         <button class="btn btn-ghost btn-sm" id="btn-import-backup">Import Backup</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Storage</h2>
+      <div class="info-grid">
+        <div><span class="muted">Clients</span><br>${storage?.clients_in_db ?? '—'}</div>
+        <div><span class="muted">Calls logged</span><br>${storage?.calls_in_db ?? '—'}</div>
+        <div><span class="muted">Remote backup</span><br>${esc(storage?.remote || 'none')}</div>
+        <div><span class="muted">Data directory</span><br><span style="font-size:0.75rem">${esc(storage?.data_dir || '')}</span></div>
       </div>
     </div>`;
 }
@@ -303,7 +386,7 @@ function renderRequestsPage() {
 
   return `
     <div class="page-header">
-      <h1>Update Requests</h1>
+      <h1>Updates</h1>
       <p>Client website change requests</p>
     </div>
     <div class="btn-row">
@@ -485,9 +568,12 @@ function parseRoute() {
 
 function setActiveNav(route) {
   const page = route[0] || 'dashboard';
+  const morePages = new Set(['settings', 'assets', 'notes', 'analytics']);
   $$('[data-nav]').forEach((a) => {
-    const active = a.dataset.nav === page
-      || (a.dataset.nav === 'clients' && page === 'clients');
+    const nav = a.dataset.nav;
+    const active = nav === page
+      || (nav === 'clients' && page === 'clients')
+      || (nav === 'settings' && morePages.has(page));
     a.classList.toggle('active', active);
   });
 }
@@ -498,26 +584,47 @@ async function render() {
   const main = $('#main-content');
   setActiveNav(route);
 
-  if (!route.length || route[0] === 'dashboard') {
-    main.innerHTML = renderDashboard();
-    bindBackupButtons();
-  } else if (route[0] === 'clients' && route.length === 1) {
-    main.innerHTML = renderClientsList();
-    bindClientsList();
-  } else if (route[0] === 'clients' && route.length >= 2) {
-    const tab = route[2] || 'overview';
-    main.innerHTML = renderClientDetail(route[1], tab);
-    bindClientDetail(route[1], tab);
-  } else if (route[0] === 'assets') {
-    main.innerHTML = renderAssetsPage();
-  } else if (route[0] === 'requests') {
-    main.innerHTML = renderRequestsPage();
-    bindRequestsPage();
-  } else if (route[0] === 'notes') {
-    main.innerHTML = renderNotesPage();
-    bindNotesPage();
-  } else {
-    main.innerHTML = renderDashboard();
+  try {
+    if (!route.length || route[0] === 'dashboard') {
+      main.innerHTML = '<div class="loading">Loading dashboard…</div>';
+      const dash = await fetchDashboard();
+      main.innerHTML = renderDashboardHtml(dash);
+    } else if (route[0] === 'leads') {
+      const cities = await initLeadsPageData();
+      main.innerHTML = renderLeadsPage(cities);
+      await bindLeadsPage(() => render());
+    } else if (route[0] === 'clients' && route.length === 1) {
+      main.innerHTML = renderClientsList();
+      bindClientsList();
+    } else if (route[0] === 'clients' && route.length >= 2) {
+      const tab = route[2] || 'overview';
+      main.innerHTML = renderClientDetail(route[1], tab);
+      bindClientDetail(route[1], tab);
+    } else if (route[0] === 'assets') {
+      main.innerHTML = renderAssetsPage();
+    } else if (route[0] === 'requests') {
+      main.innerHTML = renderRequestsPage();
+      bindRequestsPage();
+    } else if (route[0] === 'notes') {
+      main.innerHTML = renderNotesPage();
+      bindNotesPage();
+    } else if (route[0] === 'analytics') {
+      main.innerHTML = '<div class="loading">Loading analytics…</div>';
+      const [stats, learning] = await Promise.all([
+        fetchLeadStats(),
+        fetchLeadLearning(),
+      ]);
+      main.innerHTML = renderAnalyticsHtml(stats, learning);
+    } else if (route[0] === 'settings') {
+      const storage = await fetchStorageStatus();
+      main.innerHTML = renderSettingsHtml(storage);
+      bindBackupButtons();
+    } else {
+      const dash = await fetchDashboard();
+      main.innerHTML = renderDashboardHtml(dash);
+    }
+  } catch {
+    main.innerHTML = '<div class="empty panel">Could not load this page. Check your connection.</div>';
   }
   window.scrollTo(0, 0);
 }
@@ -886,8 +993,8 @@ function init() {
     if (!file) return;
     const count = loadClients().length;
     const msg = count
-      ? `Replace all ${count} client(s) with this backup? This cannot be undone.`
-      : 'Import clients from this backup file?';
+      ? `Replace all data (${count} client(s)) with this backup? Calls and lead history will also be replaced.`
+      : 'Import all data from this backup file?';
     if (!confirm(msg)) return;
     try {
       await importBackup(file);

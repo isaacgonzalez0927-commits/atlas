@@ -562,3 +562,52 @@ tr:hover td { background: var(--bg); }
   .modal-actions .btn { flex: unset; }
   .modal-actions { justify-content: flex-end; padding-bottom: 0; }
 }
+
+/* Leads */
+.leads-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.leads-table td { vertical-align: top; }
+
+.lead-card.lead-called { opacity: 0.72; }
+
+.lead-reason {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.lead-opener {
+  font-size: 0.85rem;
+  font-style: italic;
+  margin-top: 6px;
+  color: var(--text);
+}
+
+.lead-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.lead-outcome {
+  flex: 1;
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.875rem;
+}
+
+.lead-status { margin-top: 12px; font-size: 0.85rem; }
+
+tr.lead-called td { color: var(--muted); }

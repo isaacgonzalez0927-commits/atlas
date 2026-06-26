@@ -9,9 +9,14 @@
   <meta name="apple-mobile-web-app-title" content="Atlas">
   <title>Atlas — Ascend</title>
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
-  <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512.png">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon-light.png" media="(prefers-color-scheme: light)">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon-light.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192-light.png" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192-dark.png" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192-light.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512-light.png" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512-dark.png" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -42,13 +47,16 @@
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="brand">Atlas</div>
-        <div class="brand-sub">Client management</div>
+        <div class="brand-sub">Ascend operating system</div>
         <nav class="nav">
           <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
+          <a href="#/leads" data-nav="leads">Leads</a>
           <a href="#/clients" data-nav="clients">Clients</a>
+          <a href="#/requests" data-nav="requests">Updates</a>
           <a href="#/assets" data-nav="assets">Assets</a>
-          <a href="#/requests" data-nav="requests">Requests</a>
           <a href="#/notes" data-nav="notes">Notes</a>
+          <a href="#/analytics" data-nav="analytics">Analytics</a>
+          <a href="#/settings" data-nav="settings">Settings</a>
         </nav>
         <div class="sidebar-foot">
           <div class="theme-switch-label">Appearance</div>
@@ -66,10 +74,10 @@
 
     <nav class="bottom-nav" id="bottom-nav">
       <a href="#/dashboard" data-nav="dashboard">Home</a>
+      <a href="#/leads" data-nav="leads">Leads</a>
       <a href="#/clients" data-nav="clients">Clients</a>
-      <a href="#/assets" data-nav="assets">Assets</a>
-      <a href="#/requests" data-nav="requests">Requests</a>
-      <a href="#/notes" data-nav="notes">Notes</a>
+      <a href="#/requests" data-nav="requests">Updates</a>
+      <a href="#/settings" data-nav="settings">More</a>
     </nav>
   </div>
 

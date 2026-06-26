@@ -1,23 +1,32 @@
-"""Atlas V0 — Flask API + static frontend (Ascend client OS)."""
+"""Atlas — unified Ascend operating system (clients + leads)."""
 
 from __future__ import annotations
 
+import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 
 import db
+import leads_engine
 import storage
+import tracking
 from atlas_icons import ATLAS_MANIFEST_ICONS
+from learning import learning_status
 
 HERE = Path(__file__).parent
+load_dotenv(HERE / ".env")
 ATLAS_CODE = os.getenv("ATLAS_CODE", "").strip()
+CALLER_NAME = os.getenv("CALLER_NAME", "sebastien").strip()
 
 app = Flask(__name__, static_folder=str(HERE), static_url_path="")
 
 # Restore + periodic save at worker startup (not only first browser request).
 db.init_db()
+tracking.init_db()
 _boot = storage.bootstrap()
 storage.start_periodic_save()
 storage.start_recovery_loop()
@@ -62,7 +71,222 @@ def health():
     return jsonify({
         "ok": True,
         "auth_required": bool(ATLAS_CODE),
+        "google_maps_configured": bool(os.getenv("GOOGLE_MAPS_API_KEY", "").strip()),
     })
+
+
+@app.get("/api/dashboard")
+def api_dashboard():
+    err = _require_auth()
+    if err:
+        return err
+    clients = db.list_clients()
+    lead_stats = tracking.dashboard_stats()
+    requests_open = sum(
+        1 for c in clients for r in (c.get("requests") or [])
+        if r.get("status") != "complete"
+    )
+    active_clients = sum(
+        1 for c in clients if c.get("status") in ("onboarding", "building", "waiting_on_client")
+    )
+    total_leads = lead_stats.get("total", 0)
+    called = total_leads
+    previews = lead_stats.get("previews", 0)
+    clients_won = lead_stats.get("clients", 0)
+    conversion = round(clients_won / called * 100, 1) if called else 0
+
+    return jsonify({
+        "clients": {
+            "total": len(clients),
+            "active": active_clients,
+            "open_requests": requests_open,
+        },
+        "leads": {
+            "total": total_leads,
+            "called": called,
+            "previews": previews,
+            "clients": clients_won,
+            "conversion_rate": conversion,
+            "callbacks": lead_stats.get("callbacks", 0),
+            "interest_rate": lead_stats.get("interest_rate", 0),
+        },
+        "recent_calls": lead_stats.get("recent", [])[:8],
+        "learning": learning_status(),
+        "storage": storage.status(),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Leads (Nexus engine)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/leads/cities")
+def api_leads_cities():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify(leads_engine.florida_cities_list())
+
+
+@app.post("/api/leads/generate")
+def api_leads_generate():
+    err = _require_auth()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    rate_key = f"{request.remote_addr}:{request.headers.get('X-Atlas-Code', '')}"
+    job_id, error = leads_engine.start_generation(
+        mode=data.get("mode", "random"),
+        city=(data.get("city") or "").strip(),
+        count=int(data.get("count", 20)),
+        site_filter=data.get("site_filter", "all"),
+        industry=(data.get("industry") or "hvac").strip(),
+        exclude_phones=data.get("exclude_phones") or [],
+        rate_key=rate_key,
+    )
+    if error:
+        code = 503 if error.get("error") == "missing_api_key" else 429
+        return jsonify(error), code
+    return jsonify({"job_id": job_id})
+
+
+@app.get("/api/leads/status/<job_id>")
+def api_leads_status(job_id: str):
+    err = _require_auth()
+    if err:
+        return err
+    job = leads_engine.get_job(job_id)
+    if not job:
+        return jsonify({"status": "unknown"}), 404
+    return jsonify(job)
+
+
+@app.get("/api/leads/outcomes")
+def api_leads_outcomes():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify({
+        "outcomes": [
+            {"value": "", "label": "Not Called"},
+            {"value": "no_answer", "label": "No Answer"},
+            {"value": "not_interested", "label": "Not Interested"},
+            {"value": "callback", "label": "Call Back"},
+            {"value": "preview", "label": "Preview"},
+            {"value": "client", "label": "Client"},
+        ],
+        "by_phone": tracking.latest_outcomes_by_phone(),
+    })
+
+
+@app.post("/api/leads/log-outcome")
+def api_leads_log_outcome():
+    err = _require_auth()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    outcome = (data.get("outcome") or "").strip().lower()
+    if not outcome:
+        return jsonify({"error": "outcome_required"}), 400
+    try:
+        result = tracking.log_call(
+            caller_id=CALLER_NAME,
+            business_name=data.get("business_name", ""),
+            phone=data.get("phone", ""),
+            score=data.get("score"),
+            site_status=data.get("site_status", ""),
+            address=data.get("address", ""),
+            outcome=outcome,
+            notes=data.get("notes", ""),
+        )
+        return jsonify({"ok": True, **result})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/leads/convert-to-client")
+def api_leads_convert():
+    err = _require_auth()
+    if err:
+        return err
+    data = request.get_json(silent=True) or {}
+    name = (data.get("business_name") or data.get("name") or "").strip()
+    phone = (data.get("phone") or "").strip()
+    if not name:
+        return jsonify({"error": "business_name_required"}), 400
+
+    client = db.create_client({
+        "businessName": name,
+        "phone": phone,
+        "website": data.get("website", ""),
+        "status": "onboarding",
+        "dateSigned": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    })
+
+    try:
+        tracking.log_call(
+            caller_id=CALLER_NAME,
+            business_name=name,
+            phone=phone,
+            score=data.get("score"),
+            site_status=data.get("site_status", ""),
+            address=data.get("address", ""),
+            outcome="client",
+            notes="Converted from lead",
+        )
+    except ValueError:
+        pass
+
+    return jsonify({"ok": True, "client": client}), 201
+
+
+@app.get("/api/leads/history")
+def api_leads_history():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify(tracking.call_history(
+        site_status=request.args.get("site_status", ""),
+        outcome=request.args.get("outcome", ""),
+        city=request.args.get("city", ""),
+    ))
+
+
+@app.get("/api/leads/reports")
+def api_leads_reports():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify(tracking.get_all_reports())
+
+
+@app.get("/api/leads/stats")
+def api_leads_stats():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify(tracking.statistics_page())
+
+
+@app.get("/api/leads/learning")
+def api_leads_learning():
+    err = _require_auth()
+    if err:
+        return err
+    return jsonify(learning_status())
+
+
+@app.post("/api/leads/reset-history")
+def api_leads_reset_history():
+    err = _require_auth()
+    if err:
+        return err
+    from paths import HISTORY_FILE
+
+    HISTORY_FILE.write_text('{"phone_keys": []}', encoding="utf-8")
+    storage.after_change("reset_history")
+    return jsonify({"ok": True})
 
 
 @app.get("/api/clients")
@@ -212,12 +436,16 @@ def api_export():
     err = _require_auth()
     if err:
         return err
-    from datetime import datetime, timezone
 
+    snap = storage.build_snapshot()
     return jsonify({
-        "version": 1,
+        "version": snap.get("version", 2),
         "exportedAt": datetime.now(timezone.utc).isoformat(),
-        "clients": db.list_clients(),
+        "clients": snap.get("clients") or [],
+        "calls": snap.get("calls") or [],
+        "reports": snap.get("reports") or [],
+        "generated_history": snap.get("generated_history") or {"phone_keys": []},
+        "learn_cache": snap.get("learn_cache"),
     })
 
 
@@ -229,10 +457,27 @@ def api_restore():
         return err
     payload = request.get_json(silent=True) or {}
     clients = payload.get("clients") or []
-    if not clients:
-        return jsonify({"error": "no_clients"}), 400
-    count = db.restore_clients(clients)
-    return jsonify({"ok": True, "restored": count})
+    calls = payload.get("calls")
+    if not clients and calls is None:
+        return jsonify({"error": "no_data"}), 400
+    if clients:
+        db.restore_clients(clients)
+    if calls is not None:
+        tracking.restore_backup({
+            "calls": calls,
+            "reports": payload.get("reports") or [],
+        })
+    hist = payload.get("generated_history")
+    if isinstance(hist, dict):
+        from paths import HISTORY_FILE
+
+        HISTORY_FILE.write_text(json.dumps(hist, indent=2), encoding="utf-8")
+    storage.after_change("restore")
+    return jsonify({
+        "ok": True,
+        "restored_clients": len(clients),
+        "restored_calls": len(calls or []),
+    })
 
 
 @app.get("/manifest.webmanifest")
@@ -240,7 +485,7 @@ def manifest():
     return jsonify({
         "name": "Atlas",
         "short_name": "Atlas",
-        "description": "Ascend client management",
+        "description": "Ascend operating system — clients, leads, and operations",
         "start_url": "/",
         "scope": "/",
         "display": "standalone",

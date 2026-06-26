@@ -2,26 +2,33 @@ services:
   - type: web
     name: ascend-atlas
     runtime: python
-    plan: free
+    plan: starter
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4
+    disk:
+      name: atlas-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: ATLAS_CODE
         sync: false
+      - key: ATLAS_DATA_DIR
+        value: /data
+      - key: ATLAS_DB_PATH
+        value: /data/atlas.db
       - key: ATLAS_GITHUB_TOKEN
         sync: false
       - key: ATLAS_GITHUB_REPO
         sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: CALLER_NAME
+        value: sebastien
       - key: PYTHON_VERSION
         value: "3.12.6"
 
-# Auto-save: ATLAS_GITHUB_TOKEN + ATLAS_GITHUB_REPO=youruser/atlas-data
-# Or Starter + disk:
-#   plan: starter   # $7/mo
-#   disk:
-#     name: atlas-data
-#     mountPath: /data
-#     sizeGB: 1
-#   envVars:
-#     - key: ATLAS_DB_PATH
-#       value: /data/atlas.db
+# Unified Atlas: clients + Nexus lead engine
+# Optional: ATLAS_LEARN_OPENAI=1 for AI score refinement
+# GitHub backup: ATLAS_GITHUB_REPO=youruser/atlas-data

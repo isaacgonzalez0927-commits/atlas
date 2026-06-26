@@ -263,7 +263,69 @@ export async function importBackup(file) {
   const text = await file.text();
   const parsed = JSON.parse(text);
   const clients = Array.isArray(parsed) ? parsed : (parsed.clients || []);
-  if (!clients.length) throw new Error('no_clients');
-  await api('POST', '/api/restore', { clients });
+  const payload = { clients };
+  if (parsed.calls) payload.calls = parsed.calls;
+  if (parsed.reports) payload.reports = parsed.reports;
+  if (parsed.generated_history) payload.generated_history = parsed.generated_history;
+  if (!clients.length && !payload.calls) throw new Error('no_data');
+  await api('POST', '/api/restore', payload);
   await refreshClients();
+}
+
+// ---------------------------------------------------------------------------
+// Leads (Nexus engine)
+// ---------------------------------------------------------------------------
+
+export async function fetchDashboard() {
+  return api('GET', '/api/dashboard');
+}
+
+export async function fetchFloridaCities() {
+  return api('GET', '/api/leads/cities');
+}
+
+export async function generateLeads(body) {
+  return api('POST', '/api/leads/generate', body);
+}
+
+export async function pollLeadJob(jobId) {
+  return api('GET', `/api/leads/status/${jobId}`);
+}
+
+export async function fetchLeadOutcomes() {
+  return api('GET', '/api/leads/outcomes');
+}
+
+export async function logLeadOutcome(data) {
+  return api('POST', '/api/leads/log-outcome', data);
+}
+
+export async function convertLeadToClient(lead) {
+  const result = await api('POST', '/api/leads/convert-to-client', {
+    business_name: lead.name,
+    phone: lead.phone,
+    website: lead.website,
+    score: lead.score,
+    site_status: lead.site_status,
+    address: lead.address,
+  });
+  await refreshClients();
+  return result;
+}
+
+export async function fetchLeadHistory(params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  return api('GET', `/api/leads/history${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchLeadStats() {
+  return api('GET', '/api/leads/stats');
+}
+
+export async function fetchLeadLearning() {
+  return api('GET', '/api/leads/learning');
+}
+
+export async function fetchStorageStatus() {
+  return api('GET', '/api/storage');
 }

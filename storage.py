@@ -1,4 +1,4 @@
-"""Atlas auto-save — local snapshots + optional GitHub/URL remote sync."""
+"""Atlas auto-save — unified snapshot (clients + leads + learning data)."""
 
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import db
-from paths import DATA_ROOT, SNAPSHOT_FILE
+import tracking
+from paths import DATA_ROOT, HISTORY_FILE, LEARN_CACHE_FILE, SNAPSHOT_FILE
 
-SNAPSHOT_VERSION = 1
+SNAPSHOT_VERSION = 2
 SYNC_DEBOUNCE_SEC = 20
 PERIODIC_SAVE_SEC = 180
 REMOTE_RETRIES = 5
@@ -39,17 +40,36 @@ def _atomic_write(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
+def _read_json_file(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
 def build_snapshot() -> dict:
-    return {
-        "version": SNAPSHOT_VERSION,
-        "saved_at": _now_iso(),
-        "app": "atlas",
-        "clients": db.list_clients(),
-    }
+    snap = tracking.export_backup()
+    snap["version"] = SNAPSHOT_VERSION
+    snap["saved_at"] = _now_iso()
+    snap["app"] = "atlas"
+    snap["clients"] = db.list_clients()
+    hist = _read_json_file(HISTORY_FILE)
+    snap["generated_history"] = hist if hist else {"phone_keys": []}
+    cache = _read_json_file(LEARN_CACHE_FILE)
+    if cache:
+        snap["learn_cache"] = cache
+    return snap
 
 
 def _has_data(snap: dict) -> bool:
-    return bool(snap.get("clients"))
+    if snap.get("clients"):
+        return True
+    if snap.get("calls"):
+        return True
+    hist = snap.get("generated_history") or {}
+    return bool(hist.get("phone_keys"))
 
 
 def apply_snapshot(data: dict) -> None:
@@ -57,14 +77,24 @@ def apply_snapshot(data: dict) -> None:
     if clients:
         db.restore_clients(clients)
 
+    calls = data.get("calls")
+    if calls is not None:
+        tracking.restore_backup({
+            "calls": calls,
+            "reports": data.get("reports") or [],
+        })
+
+    hist = data.get("generated_history")
+    if isinstance(hist, dict):
+        _atomic_write(HISTORY_FILE, json.dumps(hist, indent=2))
+
+    cache = data.get("learn_cache")
+    if isinstance(cache, dict):
+        _atomic_write(LEARN_CACHE_FILE, json.dumps(cache, indent=2))
+
 
 def load_local_snapshot() -> dict | None:
-    if not SNAPSHOT_FILE.exists():
-        return None
-    try:
-        return json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
+    return _read_json_file(SNAPSHOT_FILE)
 
 
 def save_local_snapshot() -> None:
@@ -211,6 +241,22 @@ def after_change(reason: str = "") -> None:
         maybe_sync_remote()
 
 
+def _local_has_data() -> bool:
+    if db.list_clients():
+        return True
+    try:
+        with tracking._DB_LOCK:
+            conn = tracking._conn()
+            count = conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0]
+            conn.close()
+        if count > 0:
+            return True
+    except OSError:
+        pass
+    hist = _read_json_file(HISTORY_FILE)
+    return bool(hist and hist.get("phone_keys"))
+
+
 def bootstrap() -> dict:
     global _BOOTSTRAP_DONE, _LAST_BOOTSTRAP
     if _BOOTSTRAP_DONE:
@@ -218,14 +264,13 @@ def bootstrap() -> dict:
     _BOOTSTRAP_DONE = True
 
     with _LOCK:
-        clients = db.list_clients()
-        if clients:
+        if _local_has_data():
             save_local_snapshot()
             maybe_sync_remote(force=True)
             _LAST_BOOTSTRAP = {
                 "status": "ok",
                 "source": "local_db",
-                "clients": len(clients),
+                "clients": len(db.list_clients()),
                 "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
             }
             return _LAST_BOOTSTRAP
@@ -239,6 +284,7 @@ def bootstrap() -> dict:
                 "status": "restored",
                 "source": "local_snapshot",
                 "clients": len(local.get("clients") or []),
+                "calls": len(local.get("calls") or []),
             }
             return _LAST_BOOTSTRAP
 
@@ -251,6 +297,7 @@ def bootstrap() -> dict:
                 "status": "restored",
                 "source": "remote",
                 "clients": len(remote.get("clients") or []),
+                "calls": len(remote.get("calls") or []),
             }
             return _LAST_BOOTSTRAP
 
@@ -278,7 +325,6 @@ def start_periodic_save() -> None:
 
 
 def start_recovery_loop() -> None:
-    """If startup restore missed GitHub, keep trying before any partial save clobbers it."""
     global _RECOVERY_STARTED
     if _RECOVERY_STARTED:
         return
@@ -291,13 +337,13 @@ def start_recovery_loop() -> None:
         while True:
             time.sleep(RECOVERY_POLL_SEC)
             try:
-                if db.list_clients():
+                if _local_has_data():
                     return
                 remote = fetch_remote_snapshot()
                 if not remote or not _has_data(remote):
                     continue
                 with _LOCK:
-                    if db.list_clients():
+                    if _local_has_data():
                         return
                     apply_snapshot(remote)
                     save_local_snapshot()
@@ -305,6 +351,7 @@ def start_recovery_loop() -> None:
                         "status": "restored",
                         "source": "recovery_loop",
                         "clients": len(remote.get("clients") or []),
+                        "calls": len(remote.get("calls") or []),
                     }
                 print(f"[atlas] storage recovery: {_LAST_BOOTSTRAP}", flush=True)
                 return
@@ -316,6 +363,13 @@ def start_recovery_loop() -> None:
 
 def status() -> dict:
     clients = db.list_clients()
+    try:
+        with tracking._DB_LOCK:
+            conn = tracking._conn()
+            calls = conn.execute("SELECT COUNT(*) FROM calls").fetchone()[0]
+            conn.close()
+    except OSError:
+        calls = 0
     gh = _github_config()
     mtime = None
     if SNAPSHOT_FILE.exists():
@@ -324,6 +378,7 @@ def status() -> dict:
         ).isoformat()
     return {
         "clients_in_db": len(clients),
+        "calls_in_db": calls,
         "local_snapshot": SNAPSHOT_FILE.exists(),
         "local_snapshot_at": mtime,
         "last_local_save": _LAST_LOCAL_SAVE or None,
