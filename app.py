@@ -20,6 +20,7 @@ app = Flask(__name__, static_folder=str(HERE), static_url_path="")
 db.init_db()
 _boot = storage.bootstrap()
 storage.start_periodic_save()
+storage.start_recovery_loop()
 print(f"[atlas] storage bootstrap: {_boot}", flush=True)
 
 

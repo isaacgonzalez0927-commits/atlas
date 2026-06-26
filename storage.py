@@ -16,8 +16,10 @@ from paths import DATA_ROOT, SNAPSHOT_FILE
 SNAPSHOT_VERSION = 1
 SYNC_DEBOUNCE_SEC = 20
 PERIODIC_SAVE_SEC = 180
-REMOTE_RETRIES = 3
+REMOTE_RETRIES = 5
+RECOVERY_POLL_SEC = 60
 _LAST_BOOTSTRAP: dict = {}
+_RECOVERY_STARTED = False
 
 
 def _now_iso() -> str:
@@ -273,6 +275,43 @@ def start_periodic_save() -> None:
                 pass
 
     threading.Thread(target=_loop, daemon=True, name="atlas-periodic-save").start()
+
+
+def start_recovery_loop() -> None:
+    """If startup restore missed GitHub, keep trying before any partial save clobbers it."""
+    global _RECOVERY_STARTED
+    if _RECOVERY_STARTED:
+        return
+    if not _github_config() and not os.getenv("ATLAS_BACKUP_URL", "").strip():
+        return
+    _RECOVERY_STARTED = True
+
+    def _loop() -> None:
+        global _LAST_BOOTSTRAP
+        while True:
+            time.sleep(RECOVERY_POLL_SEC)
+            try:
+                if db.list_clients():
+                    return
+                remote = fetch_remote_snapshot()
+                if not remote or not _has_data(remote):
+                    continue
+                with _LOCK:
+                    if db.list_clients():
+                        return
+                    apply_snapshot(remote)
+                    save_local_snapshot()
+                    _LAST_BOOTSTRAP = {
+                        "status": "restored",
+                        "source": "recovery_loop",
+                        "clients": len(remote.get("clients") or []),
+                    }
+                print(f"[atlas] storage recovery: {_LAST_BOOTSTRAP}", flush=True)
+                return
+            except Exception:
+                pass
+
+    threading.Thread(target=_loop, daemon=True, name="atlas-recovery").start()
 
 
 def status() -> dict:
