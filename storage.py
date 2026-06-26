@@ -15,15 +15,19 @@ from paths import DATA_ROOT, SNAPSHOT_FILE
 
 SNAPSHOT_VERSION = 1
 SYNC_DEBOUNCE_SEC = 20
+PERIODIC_SAVE_SEC = 180
+REMOTE_RETRIES = 3
+_LAST_BOOTSTRAP: dict = {}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
 
 _LOCK = threading.Lock()
 _LAST_LOCAL_SAVE = 0.0
 _LAST_REMOTE_SYNC = 0.0
 _BOOTSTRAP_DONE = False
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -40,6 +44,10 @@ def build_snapshot() -> dict:
         "app": "atlas",
         "clients": db.list_clients(),
     }
+
+
+def _has_data(snap: dict) -> bool:
+    return bool(snap.get("clients"))
 
 
 def apply_snapshot(data: dict) -> None:
@@ -81,7 +89,7 @@ def _github_headers(token: str) -> dict:
     }
 
 
-def fetch_remote_snapshot() -> dict | None:
+def _fetch_remote_once() -> dict | None:
     gh = _github_config()
     if gh:
         token, repo, path = gh
@@ -118,7 +126,20 @@ def fetch_remote_snapshot() -> dict | None:
     return None
 
 
+def fetch_remote_snapshot() -> dict | None:
+    for attempt in range(REMOTE_RETRIES):
+        snap = _fetch_remote_once()
+        if snap is not None:
+            return snap
+        if attempt < REMOTE_RETRIES - 1:
+            time.sleep(2 * (attempt + 1))
+    return None
+
+
 def push_remote_snapshot(snap: dict) -> bool:
+    if not _has_data(snap):
+        return False
+
     gh = _github_config()
     body = json.dumps(snap, indent=2)
     if gh:
@@ -167,6 +188,9 @@ def _remote_sync_worker() -> None:
 def maybe_sync_remote(force: bool = False) -> None:
     if not _github_config() and not os.getenv("ATLAS_BACKUP_URL", "").strip():
         return
+    snap = build_snapshot()
+    if not _has_data(snap):
+        return
     now = time.time()
     if not force and now - _LAST_REMOTE_SYNC < SYNC_DEBOUNCE_SEC:
         return
@@ -175,43 +199,80 @@ def maybe_sync_remote(force: bool = False) -> None:
 
 def after_change(reason: str = "") -> None:
     del reason
+    snap = build_snapshot()
+    if not _has_data(snap):
+        return
     with _LOCK:
-        save_local_snapshot()
+        _atomic_write(SNAPSHOT_FILE, json.dumps(snap, indent=2))
+        global _LAST_LOCAL_SAVE
+        _LAST_LOCAL_SAVE = time.time()
         maybe_sync_remote()
 
 
 def bootstrap() -> dict:
-    global _BOOTSTRAP_DONE
+    global _BOOTSTRAP_DONE, _LAST_BOOTSTRAP
     if _BOOTSTRAP_DONE:
-        return {"status": "already_bootstrapped"}
+        return _LAST_BOOTSTRAP or {"status": "already_bootstrapped"}
     _BOOTSTRAP_DONE = True
 
     with _LOCK:
         clients = db.list_clients()
         if clients:
-            return {
+            save_local_snapshot()
+            maybe_sync_remote(force=True)
+            _LAST_BOOTSTRAP = {
                 "status": "ok",
                 "source": "local_db",
                 "clients": len(clients),
                 "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
             }
+            return _LAST_BOOTSTRAP
 
         local = load_local_snapshot()
-        if local and local.get("clients"):
+        if local and _has_data(local):
             apply_snapshot(local)
+            save_local_snapshot()
             maybe_sync_remote(force=True)
-            return {"status": "restored", "source": "local_snapshot"}
+            _LAST_BOOTSTRAP = {
+                "status": "restored",
+                "source": "local_snapshot",
+                "clients": len(local.get("clients") or []),
+            }
+            return _LAST_BOOTSTRAP
 
         remote = fetch_remote_snapshot()
-        if remote and remote.get("clients"):
+        if remote and _has_data(remote):
             apply_snapshot(remote)
             save_local_snapshot()
-            return {"status": "restored", "source": "remote"}
+            maybe_sync_remote(force=True)
+            _LAST_BOOTSTRAP = {
+                "status": "restored",
+                "source": "remote",
+                "clients": len(remote.get("clients") or []),
+            }
+            return _LAST_BOOTSTRAP
 
-        return {
+        _LAST_BOOTSTRAP = {
             "status": "empty",
             "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
         }
+        return _LAST_BOOTSTRAP
+
+
+def start_periodic_save() -> None:
+    def _loop() -> None:
+        while True:
+            time.sleep(PERIODIC_SAVE_SEC)
+            try:
+                snap = build_snapshot()
+                if _has_data(snap):
+                    with _LOCK:
+                        _atomic_write(SNAPSHOT_FILE, json.dumps(snap, indent=2))
+                    maybe_sync_remote(force=True)
+            except Exception:
+                pass
+
+    threading.Thread(target=_loop, daemon=True, name="atlas-periodic-save").start()
 
 
 def status() -> dict:
@@ -228,6 +289,7 @@ def status() -> dict:
         "local_snapshot_at": mtime,
         "last_local_save": _LAST_LOCAL_SAVE or None,
         "last_remote_sync": _LAST_REMOTE_SYNC or None,
+        "last_bootstrap": _LAST_BOOTSTRAP,
         "remote": "github" if gh else ("url" if os.getenv("ATLAS_BACKUP_URL") else "none"),
         "data_dir": str(DATA_ROOT),
     }

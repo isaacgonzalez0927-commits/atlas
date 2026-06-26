@@ -16,6 +16,12 @@ ATLAS_CODE = os.getenv("ATLAS_CODE", "").strip()
 
 app = Flask(__name__, static_folder=str(HERE), static_url_path="")
 
+# Restore + periodic save at worker startup (not only first browser request).
+db.init_db()
+_boot = storage.bootstrap()
+storage.start_periodic_save()
+print(f"[atlas] storage bootstrap: {_boot}", flush=True)
+
 
 def _auth_ok() -> bool:
     if not ATLAS_CODE:
@@ -35,8 +41,6 @@ def _require_auth():
 @app.before_request
 def init_db_once():
     if not getattr(app, "_db_ready", False):
-        db.init_db()
-        storage.bootstrap()
         app._db_ready = True
 
 
@@ -46,7 +50,7 @@ def auto_save_after_api(response):
         request.method in ("POST", "PUT", "PATCH", "DELETE")
         and request.path.startswith("/api/")
         and response.status_code < 400
-        and request.path not in ("/api/health", "/api/auth/verify")
+        and request.path not in ("/api/health", "/api/auth/verify", "/api/migrate")
     ):
         storage.after_change(request.path)
     return response
