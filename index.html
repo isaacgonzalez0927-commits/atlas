@@ -3,11 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f8f9fb">
+  <meta name="theme-color" content="#0a2540">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Atlas">
   <title>Atlas — Ascend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon-light.png" media="(prefers-color-scheme: light)">
   <link rel="apple-touch-icon" href="/static/apple-touch-icon-dark.png" media="(prefers-color-scheme: dark)">
@@ -22,6 +25,7 @@
 <body>
   <div class="login-screen" id="login-screen">
     <div class="login-card">
+      <div class="brand-mark" aria-hidden="true"></div>
       <div class="brand">Atlas</div>
       <p class="login-hint" id="login-hint">Enter your access code.</p>
       <form id="login-form">
@@ -30,14 +34,14 @@
           <input id="login-code" type="password" autocomplete="current-password" placeholder="Access code" required>
         </div>
         <p class="login-error" id="login-error"></p>
-        <button class="btn btn-primary btn-block" type="submit">Sign in</button>
+        <button class="btn btn-primary btn-block" type="submit">Continue</button>
       </form>
     </div>
   </div>
 
   <div id="app-shell">
     <header class="mobile-header">
-      <div class="mobile-brand">Atlas</div>
+      <div class="mobile-brand"><span class="brand-mark sm" aria-hidden="true"></span> Atlas</div>
       <div class="theme-switch" role="group" aria-label="Appearance">
         <button type="button" data-theme-opt="light" aria-pressed="true">Light</button>
         <button type="button" data-theme-opt="dark" aria-pressed="false">Dark</button>
@@ -46,17 +50,25 @@
 
     <div class="app">
       <aside class="sidebar" id="sidebar">
-        <div class="brand">Atlas</div>
-        <div class="brand-sub">Ascend operating system</div>
+        <div class="sidebar-brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div>
+            <div class="brand">Atlas</div>
+            <div class="brand-sub">Ascend OS</div>
+          </div>
+        </div>
         <nav class="nav">
-          <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
-          <a href="#/leads" data-nav="leads">Leads</a>
-          <a href="#/clients" data-nav="clients">Clients</a>
-          <a href="#/requests" data-nav="requests">Updates</a>
-          <a href="#/assets" data-nav="assets">Assets</a>
-          <a href="#/notes" data-nav="notes">Notes</a>
-          <a href="#/analytics" data-nav="analytics">Analytics</a>
-          <a href="#/settings" data-nav="settings">Settings</a>
+          <div class="nav-section">Overview</div>
+          <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon">◫</span>Dashboard</a>
+          <a href="#/leads" data-nav="leads"><span class="nav-icon">◎</span>Leads</a>
+          <a href="#/analytics" data-nav="analytics"><span class="nav-icon">↗</span>Analytics</a>
+          <div class="nav-section">Operations</div>
+          <a href="#/clients" data-nav="clients"><span class="nav-icon">◇</span>Clients</a>
+          <a href="#/requests" data-nav="requests"><span class="nav-icon">↻</span>Updates</a>
+          <a href="#/assets" data-nav="assets"><span class="nav-icon">▣</span>Assets</a>
+          <a href="#/notes" data-nav="notes"><span class="nav-icon">✎</span>Notes</a>
+          <div class="nav-section">System</div>
+          <a href="#/settings" data-nav="settings"><span class="nav-icon">⚙</span>Settings</a>
         </nav>
         <div class="sidebar-foot">
           <div class="theme-switch-label">Appearance</div>
