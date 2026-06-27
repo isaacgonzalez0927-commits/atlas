@@ -3,7 +3,7 @@ const THEME_KEY = 'ascend_theme';
 export function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = theme === 'dark' ? '#111827' : '#f8f9fb';
+  if (meta) meta.content = theme === 'dark' ? '#0d1117' : '#f6f9fc';
   document.querySelectorAll('[data-theme-opt]').forEach((btn) => {
     const active = btn.dataset.themeOpt === theme;
     btn.classList.toggle('active', active);

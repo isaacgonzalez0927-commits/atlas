@@ -490,8 +490,8 @@ def manifest():
         "scope": "/",
         "display": "standalone",
         "orientation": "portrait",
-        "background_color": "#f8f9fb",
-        "theme_color": "#f8f9fb",
+        "background_color": "#f6f9fc",
+        "theme_color": "#0a2540",
         "icons": ATLAS_MANIFEST_ICONS,
     })
 
