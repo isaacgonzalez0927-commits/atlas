@@ -21,11 +21,18 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512-light.png" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512-dark.png" media="(prefers-color-scheme: dark)">
   <link rel="stylesheet" href="css/styles.css">
+  <script>
+    (function () {
+      if (localStorage.getItem('ascend_theme') === 'dark') {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="login-screen" id="login-screen">
     <div class="login-card">
-      <img class="brand-logo" src="/static/icon-192-light.png" alt="Atlas" width="40" height="40">
+      <img class="brand-logo" src="/static/logo.svg" alt="Atlas" width="36" height="36">
       <div class="brand">Atlas</div>
       <p class="login-hint" id="login-hint">Enter your access code.</p>
       <form id="login-form">
@@ -41,7 +48,7 @@
 
   <div id="app-shell">
     <header class="mobile-header">
-      <div class="mobile-brand"><img class="brand-logo sm" src="/static/icon-192-light.png" alt="" width="22" height="22"> Atlas</div>
+      <div class="mobile-brand"><img class="brand-logo sm" src="/static/logo.svg" alt="" width="24" height="24"> Atlas</div>
       <div class="theme-switch" role="group" aria-label="Appearance">
         <button type="button" data-theme-opt="light" aria-pressed="true">Light</button>
         <button type="button" data-theme-opt="dark" aria-pressed="false">Dark</button>
@@ -51,7 +58,7 @@
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-          <img class="brand-logo brand-logo--sidebar" src="/static/icon-192-light.png" alt="Atlas" width="32" height="32" data-logo-fixed="light">
+          <img class="brand-logo brand-logo--sidebar" src="/static/logo-light.svg" alt="Atlas" width="28" height="28">
           <div>
             <div class="brand">Atlas</div>
             <div class="brand-sub">Ascend OS</div>

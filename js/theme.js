@@ -1,15 +1,20 @@
 const THEME_KEY = 'ascend_theme';
 
+const LOGO_DEFAULT = '/static/logo.svg';
+const LOGO_ON_DARK = '/static/logo-light.svg';
+
 export function applyTheme(theme) {
+  const isDark = theme === 'dark';
   document.documentElement.dataset.theme = theme;
+
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.content = theme === 'dark' ? '#0d1117' : '#f6f9fc';
-  const logoSrc = theme === 'dark'
-    ? '/static/icon-192-dark.png'
-    : '/static/icon-192-light.png';
-  document.querySelectorAll('.brand-logo:not([data-logo-fixed])').forEach((img) => {
+  if (meta) meta.content = isDark ? '#0d1117' : '#f6f9fc';
+
+  const logoSrc = isDark ? LOGO_ON_DARK : LOGO_DEFAULT;
+  document.querySelectorAll('.brand-logo:not(.brand-logo--sidebar)').forEach((img) => {
     img.src = logoSrc;
   });
+
   document.querySelectorAll('[data-theme-opt]').forEach((btn) => {
     const active = btn.dataset.themeOpt === theme;
     btn.classList.toggle('active', active);

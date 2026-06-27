@@ -50,9 +50,19 @@
   --mobile-header-h: 52px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+  --chrome-bg: rgba(255, 255, 255, 0.94);
+  --main-glow: rgba(99, 91, 255, 0.06);
+  --main-glow-2: rgba(128, 233, 255, 0.05);
+  --login-glow: rgba(99, 91, 255, 0.18);
+  --login-glow-2: rgba(128, 233, 255, 0.12);
 }
 
-[data-theme="dark"] {
+html {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
   --stripe-bg: #0d1117;
   --stripe-card: #161b22;
   --stripe-border: #30363d;
@@ -76,6 +86,11 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
   --sidebar-bg: #010409;
+  --chrome-bg: rgba(13, 17, 23, 0.96);
+  --main-glow: rgba(99, 91, 255, 0.1);
+  --main-glow-2: rgba(128, 233, 255, 0.04);
+  --login-glow: rgba(99, 91, 255, 0.22);
+  --login-glow-2: rgba(128, 233, 255, 0.06);
 }
 
 html {
@@ -100,30 +115,32 @@ body {
 a { color: var(--accent); text-decoration: none; transition: color 0.15s; }
 a:hover { color: var(--accent-hover); }
 
-/* Brand logo */
+/* Brand logo — transparent SVG mark */
 .brand-logo {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
 .brand-logo.sm {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
   display: inline-block;
   vertical-align: middle;
-  margin-right: 6px;
+  margin-right: 8px;
 }
 
 .login-card .brand-logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  margin-bottom: 20px;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 16px;
+}
+
+.brand-logo--sidebar {
+  width: 28px;
+  height: 28px;
 }
 
 .app { display: flex; min-height: 100vh; min-height: 100dvh; }
@@ -308,7 +325,7 @@ a:hover { color: var(--accent-hover); }
   width: 100%;
   max-width: 1120px;
   background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 91, 255, 0.06), transparent),
+    radial-gradient(ellipse 80% 50% at 50% -20%, var(--main-glow), transparent),
     var(--bg);
 }
 
@@ -499,7 +516,7 @@ tr:hover td { background: var(--accent-subtle); }
 
 .btn-ghost:hover {
   background: var(--stripe-border-light);
-  border-color: #c4cdd5;
+  border-color: var(--border);
 }
 
 .btn-danger {
@@ -508,7 +525,7 @@ tr:hover td { background: var(--accent-subtle); }
   color: var(--red);
 }
 
-.btn-danger:hover { background: #fcd5df; }
+.btn-danger:hover { filter: brightness(0.95); }
 
 .btn-sm { padding: 6px 12px; min-height: 32px; font-size: 0.8125rem; }
 .btn-block { width: 100%; }
@@ -551,19 +568,28 @@ tr:hover td { background: var(--accent-subtle); }
   box-shadow: 0 0 0 3px var(--accent-subtle), inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.field input::placeholder { color: #a3acb9; }
+.field input::placeholder { color: var(--muted); opacity: 0.7; }
+
+select option {
+  background: var(--card);
+  color: var(--text);
+}
 
 /* ── Modal ── */
 .modal-backdrop {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(10, 37, 64, 0.45);
+  background: rgba(10, 37, 64, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   z-index: 300;
   align-items: flex-end;
   justify-content: center;
+}
+
+html[data-theme="dark"] .modal-backdrop {
+  background: rgba(0, 0, 0, 0.65);
 }
 
 .modal-backdrop.show { display: flex; }
@@ -698,9 +724,9 @@ tr:hover td { background: var(--accent-subtle); }
   inset: 0;
   z-index: 500;
   background:
-    radial-gradient(ellipse 100% 80% at 50% -30%, rgba(99, 91, 255, 0.18), transparent),
-    radial-gradient(ellipse 60% 50% at 100% 50%, rgba(128, 233, 255, 0.12), transparent),
-    var(--stripe-bg);
+    radial-gradient(ellipse 100% 80% at 50% -30%, var(--login-glow), transparent),
+    radial-gradient(ellipse 60% 50% at 100% 50%, var(--login-glow-2), transparent),
+    var(--bg);
   align-items: center;
   justify-content: center;
   padding: 24px;
@@ -828,15 +854,11 @@ tr.lead-called td { color: var(--muted); }
     top: 0; left: 0; right: 0;
     height: calc(var(--mobile-header-h) + var(--safe-top));
     padding: var(--safe-top) 16px 0;
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--chrome-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--border);
     z-index: 90;
-  }
-
-  [data-theme="dark"] .mobile-header {
-    background: rgba(22, 27, 34, 0.92);
   }
 
   .mobile-brand {
@@ -855,17 +877,16 @@ tr.lead-called td { color: var(--muted); }
     bottom: 0; left: 0; right: 0;
     height: calc(var(--bottom-nav-h) + var(--safe-bottom));
     padding-bottom: var(--safe-bottom);
-    background: rgba(255, 255, 255, 0.94);
+    background: var(--chrome-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid var(--border);
     z-index: 90;
-    box-shadow: 0 -4px 16px rgba(50, 50, 93, 0.06);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
   }
 
-  [data-theme="dark"] .bottom-nav {
-    background: rgba(22, 27, 34, 0.94);
-    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  html[data-theme="dark"] .bottom-nav {
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
   }
 
   .bottom-nav a {
