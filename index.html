@@ -41,7 +41,7 @@
           <input id="login-code" type="password" autocomplete="current-password" placeholder="Access code" required>
         </div>
         <p class="login-error" id="login-error"></p>
-        <button class="btn btn-primary btn-block" type="submit">Continue</button>
+        <button class="btn btn-primary btn-block" type="submit" id="login-submit">Continue</button>
       </form>
     </div>
   </div>
@@ -50,8 +50,8 @@
     <header class="mobile-header">
       <div class="mobile-brand"><img class="brand-logo sm" src="/static/logo.svg" alt="" width="24" height="24"> Atlas</div>
       <div class="theme-switch" role="group" aria-label="Appearance">
-        <button type="button" data-theme-opt="light" aria-pressed="true">Light</button>
-        <button type="button" data-theme-opt="dark" aria-pressed="false">Dark</button>
+        <button type="button" data-theme-opt="light" aria-pressed="true"><span data-icon="sun" data-icon-size="14" class="theme-icon"></span></button>
+        <button type="button" data-theme-opt="dark" aria-pressed="false"><span data-icon="moon" data-icon-size="14" class="theme-icon"></span></button>
       </div>
     </header>
 
@@ -66,25 +66,25 @@
         </div>
         <nav class="nav">
           <div class="nav-section">Overview</div>
-          <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon">◫</span>Dashboard</a>
-          <a href="#/leads" data-nav="leads"><span class="nav-icon">◎</span>Leads</a>
-          <a href="#/analytics" data-nav="analytics"><span class="nav-icon">↗</span>Analytics</a>
+          <a href="#/dashboard" data-nav="dashboard"><span class="nav-icon" data-icon="dashboard" data-icon-size="18"></span>Dashboard</a>
+          <a href="#/leads" data-nav="leads"><span class="nav-icon" data-icon="leads" data-icon-size="18"></span>Leads</a>
+          <a href="#/analytics" data-nav="analytics"><span class="nav-icon" data-icon="analytics" data-icon-size="18"></span>Analytics</a>
           <div class="nav-section">Operations</div>
-          <a href="#/clients" data-nav="clients"><span class="nav-icon">◇</span>Clients</a>
-          <a href="#/requests" data-nav="requests"><span class="nav-icon">↻</span>Updates</a>
-          <a href="#/assets" data-nav="assets"><span class="nav-icon">▣</span>Assets</a>
-          <a href="#/notes" data-nav="notes"><span class="nav-icon">✎</span>Notes</a>
+          <a href="#/clients" data-nav="clients"><span class="nav-icon" data-icon="clients" data-icon-size="18"></span>Clients</a>
+          <a href="#/requests" data-nav="requests"><span class="nav-icon" data-icon="updates" data-icon-size="18"></span>Updates</a>
+          <a href="#/assets" data-nav="assets"><span class="nav-icon" data-icon="assets" data-icon-size="18"></span>Assets</a>
+          <a href="#/notes" data-nav="notes"><span class="nav-icon" data-icon="notes" data-icon-size="18"></span>Notes</a>
           <div class="nav-section">System</div>
-          <a href="#/settings" data-nav="settings"><span class="nav-icon">⚙</span>Settings</a>
+          <a href="#/settings" data-nav="settings"><span class="nav-icon" data-icon="settings" data-icon-size="18"></span>Settings</a>
         </nav>
         <div class="sidebar-foot">
           <div class="theme-switch-label">Appearance</div>
           <div class="theme-switch" role="group" aria-label="Appearance">
-            <button type="button" data-theme-opt="light" aria-pressed="true">Light</button>
-            <button type="button" data-theme-opt="dark" aria-pressed="false">Dark</button>
+            <button type="button" data-theme-opt="light" aria-pressed="true"><span data-icon="sun" data-icon-size="14" class="theme-icon"></span> Light</button>
+            <button type="button" data-theme-opt="dark" aria-pressed="false"><span data-icon="moon" data-icon-size="14" class="theme-icon"></span> Dark</button>
           </div>
-          <button type="button" class="foot-btn" id="sidebar-export">Export backup</button>
-          <button type="button" class="foot-btn" id="sidebar-import">Import backup</button>
+          <button type="button" class="foot-btn" id="sidebar-export"><span data-icon="export" data-icon-size="14" class="foot-icon"></span> Export backup</button>
+          <button type="button" class="foot-btn" id="sidebar-import"><span data-icon="import" data-icon-size="14" class="foot-icon"></span> Import backup</button>
         </div>
       </aside>
 
@@ -92,11 +92,11 @@
     </div>
 
     <nav class="bottom-nav" id="bottom-nav">
-      <a href="#/dashboard" data-nav="dashboard">Home</a>
-      <a href="#/leads" data-nav="leads">Leads</a>
-      <a href="#/clients" data-nav="clients">Clients</a>
-      <a href="#/requests" data-nav="requests">Updates</a>
-      <a href="#/settings" data-nav="settings">More</a>
+      <a href="#/dashboard" data-nav="dashboard"><span class="bottom-nav-icon" data-icon="home" data-icon-size="20"></span>Home</a>
+      <a href="#/leads" data-nav="leads"><span class="bottom-nav-icon" data-icon="leads" data-icon-size="20"></span>Leads</a>
+      <a href="#/clients" data-nav="clients"><span class="bottom-nav-icon" data-icon="clients" data-icon-size="20"></span>Clients</a>
+      <a href="#/requests" data-nav="requests"><span class="bottom-nav-icon" data-icon="updates" data-icon-size="20"></span>Updates</a>
+      <a href="#/settings" data-nav="settings"><span class="bottom-nav-icon" data-icon="more" data-icon-size="20"></span>More</a>
     </nav>
   </div>
 
@@ -107,15 +107,21 @@
       <h3 id="modal-title">Modal</h3>
       <div id="modal-body"></div>
       <div class="modal-actions">
-        <button class="btn btn-ghost" id="modal-cancel" type="button">Cancel</button>
-        <button class="btn btn-primary" id="modal-save" type="button">Save</button>
+        <button class="btn btn-ghost" id="modal-cancel" type="button"></button>
+        <button class="btn btn-primary" id="modal-save" type="button"></button>
       </div>
     </div>
   </div>
 
   <script type="module">
     import { initTheme } from './js/theme.js';
+    import { hydrateIcons, withIcon } from './js/icons.js';
     initTheme();
+    document.getElementById('modal-cancel').innerHTML = withIcon('cancel', 'Cancel');
+    document.getElementById('modal-save').innerHTML = withIcon('save', 'Save');
+    const loginBtn = document.getElementById('login-submit');
+    if (loginBtn) loginBtn.innerHTML = withIcon('arrowRight', 'Continue');
+    hydrateIcons();
   </script>
   <script type="module" src="js/app.js"></script>
 </body>

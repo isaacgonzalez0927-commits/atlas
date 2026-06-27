@@ -209,11 +209,16 @@ a:hover { color: var(--accent-hover); }
 }
 
 .nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 18px;
-  text-align: center;
-  font-size: 0.75rem;
-  opacity: 0.7;
+  height: 18px;
+  flex-shrink: 0;
+  opacity: 0.75;
 }
+
+.nav-icon svg { display: block; }
 
 .nav a:hover {
   background: var(--sidebar-hover);
@@ -267,6 +272,14 @@ a:hover { color: var(--accent-hover); }
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.foot-icon {
+  display: inline-flex;
+  opacity: 0.8;
 }
 
 .foot-btn:hover {
@@ -295,6 +308,19 @@ a:hover { color: var(--accent-hover); }
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.theme-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.sidebar-foot .theme-switch button {
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .theme-switch button.active {
@@ -477,8 +503,18 @@ tr:hover td { background: var(--accent-subtle); }
 
 .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; align-items: center; }
 
-/* ── Buttons (Stripe style) ── */
+/* Icons */
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 9px 16px;
   min-height: 36px;
   border-radius: var(--radius-sm);
@@ -527,8 +563,11 @@ tr:hover td { background: var(--accent-subtle); }
 
 .btn-danger:hover { filter: brightness(0.95); }
 
-.btn-sm { padding: 6px 12px; min-height: 32px; font-size: 0.8125rem; }
+.btn-sm { padding: 6px 12px; min-height: 32px; font-size: 0.8125rem; gap: 5px; }
+.btn-sm .btn-icon { width: 14px; height: 14px; }
 .btn-block { width: 100%; }
+
+.btn-icon { line-height: 0; }
 
 /* ── Forms ── */
 .form-grid {
@@ -892,14 +931,24 @@ tr.lead-called td { color: var(--muted); }
   .bottom-nav a {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 3px;
     color: var(--muted);
-    font-size: 0.6875rem;
+    font-size: 0.625rem;
     font-weight: 500;
     padding: 8px 4px;
     letter-spacing: -0.01em;
   }
+
+  .bottom-nav-icon {
+    display: inline-flex;
+    line-height: 0;
+    opacity: 0.85;
+  }
+
+  .bottom-nav a.active .bottom-nav-icon { opacity: 1; }
 
   .bottom-nav a.active {
     color: var(--accent);

@@ -35,6 +35,7 @@ import {
   bindLeadsPage,
   initLeadsPageData,
 } from './leads.js';
+import { withIcon } from './icons.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -244,9 +245,9 @@ function renderSettingsHtml(storage) {
     <div class="panel">
       <h2>Quick Links</h2>
       <div class="btn-row">
-        <a class="btn btn-ghost btn-sm" href="#/assets">Assets</a>
-        <a class="btn btn-ghost btn-sm" href="#/notes">Notes</a>
-        <a class="btn btn-ghost btn-sm" href="#/analytics">Analytics</a>
+        <a class="btn btn-ghost btn-sm" href="#/assets">${withIcon('assets', 'Assets')}</a>
+        <a class="btn btn-ghost btn-sm" href="#/notes">${withIcon('notes', 'Notes')}</a>
+        <a class="btn btn-ghost btn-sm" href="#/analytics">${withIcon('analytics', 'Analytics')}</a>
       </div>
     </div>
     <div class="panel">
@@ -255,8 +256,8 @@ function renderSettingsHtml(storage) {
         Export includes clients, call outcomes, and lead history.
       </p>
       <div class="btn-row" style="margin-bottom:0;">
-        <button class="btn btn-primary btn-sm" id="btn-export-backup">Export Backup</button>
-        <button class="btn btn-ghost btn-sm" id="btn-import-backup">Import Backup</button>
+        <button class="btn btn-primary btn-sm" id="btn-export-backup">${withIcon('export', 'Export Backup')}</button>
+        <button class="btn btn-ghost btn-sm" id="btn-import-backup">${withIcon('import', 'Import Backup')}</button>
       </div>
     </div>
     <div class="panel">
@@ -279,8 +280,8 @@ function renderClientsList() {
       <td>${esc(c.contactName)}</td>
       <td>${clientStatusBadge(c.status)}</td>
       <td>${fmtDate(c.dateSigned)}</td>
-      <td><button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button>
-          <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">Delete</button></td>
+      <td><button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">${withIcon('edit', 'Edit')}</button>
+          <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">${withIcon('delete', 'Delete')}</button></td>
     </tr>`).join('') : '<tr><td colspan="5" class="empty">No clients yet — tap Add Client to start.</td></tr>';
 
   const mobileCards = clients.length ? clients.map((c) => `
@@ -291,9 +292,9 @@ function renderClientsList() {
       </div>
       <div class="list-card-meta">${esc(c.contactName)} · Signed ${fmtDate(c.dateSigned)}</div>
       <div class="list-card-actions">
-        <a href="#/clients/${c.id}" class="btn btn-primary btn-sm">View</a>
-        <button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">Edit</button>
-        <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">Delete</button>
+        <a href="#/clients/${c.id}" class="btn btn-primary btn-sm">${withIcon('view', 'View')}</a>
+        <button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">${withIcon('edit', 'Edit')}</button>
+        <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">${withIcon('delete', 'Delete')}</button>
       </div>
     </div>`).join('') : '<div class="empty">No clients yet — tap Add Client to start.</div>';
 
@@ -303,7 +304,7 @@ function renderClientsList() {
       <p>Manage signed clients and project status</p>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="btn-add-client">+ Add Client</button>
+      <button class="btn btn-primary" id="btn-add-client">${withIcon('plus', 'Add Client')}</button>
     </div>
     <div class="panel desktop-table table-wrap">
       <table>
@@ -366,7 +367,7 @@ function renderRequestsPage() {
       <td>${esc(r.title)}</td>
       <td>${requestStatusBadge(r.status)}</td>
       <td>${fmtDate(r.dateSubmitted)}</td>
-      <td><button class="btn btn-ghost btn-sm" data-update-request="${r.clientId}:${r.id}">Update</button></td>
+      <td><button class="btn btn-ghost btn-sm" data-update-request="${r.clientId}:${r.id}">${withIcon('updates', 'Update')}</button></td>
     </tr>`).join('') : '<tr><td colspan="5" class="empty">No requests yet.</td></tr>';
 
   const mobileCards = requests.length ? requests.map((r) => `
@@ -380,7 +381,7 @@ function renderRequestsPage() {
         · ${fmtDate(r.dateSubmitted)}
       </div>
       <div class="list-card-actions">
-        <button class="btn btn-ghost btn-sm" data-update-request="${r.clientId}:${r.id}">Update Status</button>
+        <button class="btn btn-ghost btn-sm" data-update-request="${r.clientId}:${r.id}">${withIcon('updates', 'Update Status')}</button>
       </div>
     </div>`).join('') : '<div class="empty">No requests yet.</div>';
 
@@ -390,7 +391,7 @@ function renderRequestsPage() {
       <p>Client website change requests</p>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="btn-add-request">+ Create Request</button>
+      <button class="btn btn-primary" id="btn-add-request">${withIcon('plus', 'Create Request')}</button>
     </div>
     <div class="panel desktop-table table-wrap">
       <table>
@@ -419,7 +420,7 @@ function renderNotesPage() {
       <p>Internal notes per client</p>
     </div>
     <div class="btn-row">
-      <button class="btn btn-primary" id="btn-add-note">+ Add Note</button>
+      <button class="btn btn-primary" id="btn-add-note">${withIcon('plus', 'Add Note')}</button>
     </div>
     <div class="panel">
       ${notes.length ? notes.map((n) => `
@@ -427,7 +428,7 @@ function renderNotesPage() {
           <div class="note-meta">
             <a href="#/clients/${n.clientId}/notes">${esc(n.clientName)}</a>
             · ${fmtDateTime(n.updatedAt)}
-            <button class="btn btn-ghost btn-sm" style="margin-left:8px;" data-edit-note="${n.clientId}:${n.id}">Edit</button>
+            <button class="btn btn-ghost btn-sm" style="margin-left:8px;" data-edit-note="${n.clientId}:${n.id}">${withIcon('edit', 'Edit')}</button>
           </div>
           <div class="note-body">${esc(n.text)}</div>
         </div>`).join('') : '<div class="empty">No notes yet</div>'}
@@ -491,8 +492,8 @@ function renderClientDetail(id, tab = 'overview') {
           <div><div class="info-label">Date Signed</div><div class="info-value">${fmtDate(client.dateSigned)}</div></div>
         </div>
         <div class="btn-row" style="margin-top:16px;">
-          <button class="btn btn-ghost btn-sm" id="btn-edit-client-detail">Edit Client</button>
-          <button class="btn btn-danger btn-sm" id="btn-delete-client-detail">Delete Client</button>
+          <button class="btn btn-ghost btn-sm" id="btn-edit-client-detail">${withIcon('edit', 'Edit Client')}</button>
+          <button class="btn btn-danger btn-sm" id="btn-delete-client-detail">${withIcon('delete', 'Delete Client')}</button>
         </div>
       </div>
       ${openReqs.length ? `
@@ -518,7 +519,7 @@ function renderClientDetail(id, tab = 'overview') {
   } else if (tab === 'requests') {
     const reqs = [...(client.requests || [])].sort((a, b) => (b.dateSubmitted || '').localeCompare(a.dateSubmitted || ''));
     tabContent = `
-      <div class="btn-row"><button class="btn btn-primary btn-sm" id="btn-add-request-client">+ New Request</button></div>
+      <div class="btn-row"><button class="btn btn-primary btn-sm" id="btn-add-request-client">${withIcon('plus', 'New Request')}</button></div>
       <div class="panel">
         ${reqs.length ? reqs.map((r) => `
           <div class="feed-item">
@@ -528,19 +529,19 @@ function renderClientDetail(id, tab = 'overview') {
             </div>
             <div class="feed-time">${fmtDate(r.dateSubmitted)}</div>
             <p style="margin-top:8px;color:var(--muted);font-size:0.88rem;">${esc(r.description)}</p>
-            <button class="btn btn-ghost btn-sm" data-update-request="${client.id}:${r.id}" style="margin-top:8px;">Update Status</button>
+            <button class="btn btn-ghost btn-sm" data-update-request="${client.id}:${r.id}" style="margin-top:8px;">${withIcon('updates', 'Update Status')}</button>
           </div>`).join('') : '<div class="empty">No requests for this client</div>'}
       </div>`;
   } else if (tab === 'notes') {
     const notes = [...(client.notes || [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     tabContent = `
-      <div class="btn-row"><button class="btn btn-primary btn-sm" id="btn-add-note-client">+ Add Note</button></div>
+      <div class="btn-row"><button class="btn btn-primary btn-sm" id="btn-add-note-client">${withIcon('plus', 'Add Note')}</button></div>
       <div class="panel">
         ${notes.length ? notes.map((n) => `
           <div class="note-item">
             <div class="note-meta">
               ${fmtDateTime(n.updatedAt)}
-              <button class="btn btn-ghost btn-sm" data-edit-note="${client.id}:${n.id}">Edit</button>
+              <button class="btn btn-ghost btn-sm" data-edit-note="${client.id}:${n.id}">${withIcon('edit', 'Edit')}</button>
             </div>
             <div class="note-body">${esc(n.text)}</div>
           </div>`).join('') : '<div class="empty">No notes yet</div>'}

@@ -8,6 +8,7 @@ import {
   convertLeadToClient,
   fetchFloridaCities,
 } from './store.js';
+import { withIcon } from './icons.js';
 
 const OUTCOMES = [
   { value: '', label: 'Not Called' },
@@ -74,7 +75,7 @@ function leadRow(lead, outcome) {
       <td class="muted" style="max-width:200px;font-size:0.8rem">${esc(lead.reason || '')}</td>
       <td>${outcomeSelect(lead, outcome)}</td>
       <td>
-        <button class="btn btn-primary btn-sm" data-convert="${esc(lead.phone)}">Convert</button>
+        <button class="btn btn-primary btn-sm" data-convert="${esc(lead.phone)}">${withIcon('userPlus', 'Convert')}</button>
       </td>
     </tr>`;
 }
@@ -93,7 +94,7 @@ function leadCard(lead, outcome) {
       ${lead.opener ? `<div class="lead-opener">"${esc(lead.opener)}"</div>` : ''}
       <div class="lead-actions">
         ${outcomeSelect(lead, outcome)}
-        <button class="btn btn-primary btn-sm" data-convert="${esc(lead.phone)}">Convert to Client</button>
+        <button class="btn btn-primary btn-sm" data-convert="${esc(lead.phone)}">${withIcon('userPlus', 'Convert to Client')}</button>
       </div>
     </div>`;
 }
@@ -155,7 +156,7 @@ export function renderLeadsPage(cities = []) {
             <option value="30">30</option>
           </select>
         </div>
-        <button class="btn btn-primary" id="btn-generate-leads" type="button">Generate Leads</button>
+        <button class="btn btn-primary" id="btn-generate-leads" type="button">${withIcon('zap', 'Generate Leads')}</button>
       </div>
       <div id="lead-status" class="lead-status muted"></div>
     </div>
