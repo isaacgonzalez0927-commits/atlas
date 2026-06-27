@@ -483,8 +483,8 @@ def api_restore():
 @app.get("/manifest.webmanifest")
 def manifest():
     return jsonify({
-        "name": "Atlas",
-        "short_name": "Atlas",
+        "name": "Atlas OS",
+        "short_name": "Atlas OS",
         "description": "Ascend operating system — clients, leads, and operations",
         "start_url": "/",
         "scope": "/",

@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0a2540">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Atlas">
-  <title>Atlas — Ascend</title>
+  <meta name="apple-mobile-web-app-title" content="Atlas OS">
+  <title>Atlas OS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -32,8 +32,12 @@
 <body>
   <div class="login-screen" id="login-screen">
     <div class="login-card">
-      <img class="brand-logo" src="/static/logo.svg" alt="Atlas" width="36" height="36">
-      <div class="brand">Atlas</div>
+      <div class="login-brand">
+        <div class="brand-chip brand-chip--lg">
+          <img class="brand-chip-img" src="/static/icon-192-light.png" alt="">
+        </div>
+        <div class="brand-wordmark login-wordmark"><span>Atlas</span><span class="brand-os"> OS</span></div>
+      </div>
       <p class="login-hint" id="login-hint">Enter your access code.</p>
       <form id="login-form">
         <div class="field">
@@ -48,7 +52,12 @@
 
   <div id="app-shell">
     <header class="mobile-header">
-      <div class="mobile-brand"><img class="brand-logo sm" src="/static/logo.svg" alt="" width="24" height="24"> Atlas</div>
+      <div class="mobile-brand">
+        <div class="brand-chip brand-chip--sm">
+          <img class="brand-chip-img" src="/static/icon-192-light.png" alt="">
+        </div>
+        <span class="brand-wordmark mobile-wordmark"><span>Atlas</span><span class="brand-os"> OS</span></span>
+      </div>
       <div class="theme-switch" role="group" aria-label="Appearance">
         <button type="button" data-theme-opt="light" aria-pressed="true"><span data-icon="sun" data-icon-size="14" class="theme-icon"></span></button>
         <button type="button" data-theme-opt="dark" aria-pressed="false"><span data-icon="moon" data-icon-size="14" class="theme-icon"></span></button>
@@ -58,10 +67,12 @@
     <div class="app">
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-          <img class="brand-logo brand-logo--sidebar" src="/static/logo-light.svg" alt="Atlas" width="28" height="28">
-          <div>
-            <div class="brand">Atlas</div>
-            <div class="brand-sub">Ascend OS</div>
+          <div class="brand-chip brand-chip--sidebar">
+            <img class="brand-chip-img" src="/static/icon-192-light.png" alt="" data-logo-fixed="light">
+          </div>
+          <div class="brand-text">
+            <div class="brand-wordmark sidebar-wordmark"><span>Atlas</span><span class="brand-os"> OS</span></div>
+            <div class="brand-sub">Ascend</div>
           </div>
         </div>
         <nav class="nav">

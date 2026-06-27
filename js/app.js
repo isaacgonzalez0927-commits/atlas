@@ -55,8 +55,8 @@ function showLoginScreen(authRequired) {
     const hint = $('#login-hint');
     if (hint) {
       hint.textContent = authRequired
-        ? 'Enter your Atlas access code to continue.'
-        : 'Starting Atlas…';
+        ? 'Enter your Atlas OS access code to continue.'
+        : 'Starting Atlas OS…';
     }
     const form = $('#login-form');
     if (form) form.style.display = authRequired ? '' : 'none';
@@ -643,7 +643,7 @@ async function startApp() {
       const health = await checkHealth();
       showLoginScreen(health.auth_required);
     } else {
-      $('#main-content').innerHTML = '<div class="empty panel">Could not connect to Atlas. Is the server running?</div>';
+      $('#main-content').innerHTML = '<div class="empty panel">Could not connect to Atlas OS. Is the server running?</div>';
     }
   }
 }
@@ -656,7 +656,7 @@ function serverErrorHtml(reason) {
   if (reason === 'file_protocol') {
     return `
       <div class="empty panel">
-        <p><strong>Atlas must run through the server.</strong></p>
+        <p><strong>Atlas OS must run through the server.</strong></p>
         <p style="margin-top:12px;color:var(--muted);">Don't open the HTML file directly. In Terminal:</p>
         <pre style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:10px;overflow-x:auto;font-size:0.8rem;">cd atlas
 python3 app.py</pre>
@@ -682,7 +682,7 @@ python3 app.py</pre>
     return `
       <div class="empty panel">
         <p><strong>Server not running.</strong></p>
-        <p style="margin-top:12px;color:var(--muted);">Start Atlas in Terminal:</p>
+        <p style="margin-top:12px;color:var(--muted);">Start Atlas OS in Terminal:</p>
         <pre style="margin-top:12px;padding:12px;background:rgba(0,0,0,0.3);border-radius:10px;overflow-x:auto;font-size:0.8rem;">cd atlas
 python3 app.py</pre>
         <p style="margin-top:12px;">Then open <a href="${localUrl}">${localUrl}</a></p>
@@ -692,7 +692,7 @@ python3 app.py</pre>
 
   return `
     <div class="empty panel">
-      <p><strong>Could not reach Atlas server.</strong></p>
+      <p><strong>Could not reach Atlas OS server.</strong></p>
       <p style="margin-top:12px;color:var(--muted);line-height:1.5;">
         Render may still be waking up (free tier — wait 30s and refresh),
         or the service needs to be a Python Web Service with the latest code pushed.
@@ -1002,7 +1002,7 @@ function init() {
       await render();
       alert('Backup restored successfully.');
     } catch {
-      alert('Import failed. Make sure the file is a valid Atlas backup (.json).');
+      alert('Import failed. Make sure the file is a valid Atlas OS backup (.json).');
     }
   });
 }

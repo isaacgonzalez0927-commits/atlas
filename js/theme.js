@@ -1,7 +1,7 @@
 const THEME_KEY = 'ascend_theme';
 
-const LOGO_DEFAULT = '/static/logo.svg';
-const LOGO_ON_DARK = '/static/logo-light.svg';
+const LOGO_LIGHT = '/static/icon-192-light.png';
+const LOGO_DARK = '/static/icon-192-dark.png';
 
 export function applyTheme(theme) {
   const isDark = theme === 'dark';
@@ -10,9 +10,12 @@ export function applyTheme(theme) {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.content = isDark ? '#0d1117' : '#f6f9fc';
 
-  const logoSrc = isDark ? LOGO_ON_DARK : LOGO_DEFAULT;
-  document.querySelectorAll('.brand-logo:not(.brand-logo--sidebar)').forEach((img) => {
-    img.src = logoSrc;
+  document.querySelectorAll('.brand-chip-img').forEach((img) => {
+    if (img.dataset.logoFixed === 'light') {
+      img.src = LOGO_LIGHT;
+    } else {
+      img.src = isDark ? LOGO_DARK : LOGO_LIGHT;
+    }
   });
 
   document.querySelectorAll('[data-theme-opt]').forEach((btn) => {
