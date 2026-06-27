@@ -115,47 +115,7 @@ body {
 a { color: var(--accent); text-decoration: none; transition: color 0.15s; }
 a:hover { color: var(--accent-hover); }
 
-/* Brand — official icon in app-icon chip + wordmark */
-.brand-chip {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  flex-shrink: 0;
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.14),
-    0 0 0 1px rgba(255, 255, 255, 0.06);
-}
-
-.brand-chip--sidebar {
-  width: 36px;
-  height: 36px;
-  padding: 4px;
-  border-radius: 10px;
-}
-
-.brand-chip--sm {
-  width: 28px;
-  height: 28px;
-  padding: 3px;
-  border-radius: 8px;
-}
-
-.brand-chip--lg {
-  width: 56px;
-  height: 56px;
-  padding: 5px;
-  border-radius: 14px;
-  margin: 0 auto 14px;
-}
-
-.brand-chip-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
+/* Brand wordmark */
 .brand-wordmark {
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -169,7 +129,7 @@ a:hover { color: var(--accent-hover); }
 }
 
 .sidebar-wordmark {
-  font-size: 1.0625rem;
+  font-size: 1.125rem;
   color: #fff;
 }
 
@@ -192,7 +152,7 @@ a:hover { color: var(--accent-hover); }
   font-size: 1.5rem;
   color: var(--text);
   text-align: center;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .login-wordmark .brand-os {
@@ -226,8 +186,7 @@ a:hover { color: var(--accent-hover); }
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 4px 8px 20px;
+  padding: 8px 10px 24px;
   margin-bottom: 4px;
 }
 
