@@ -55,7 +55,7 @@ function showLoginScreen(authRequired) {
     const hint = $('#login-hint');
     if (hint) {
       hint.textContent = authRequired
-        ? 'Enter your Atlas OS access code to continue.'
+        ? 'Enter the Atlas OS access code. One code — full access to Leads, Clients, and everything.'
         : 'Starting Atlas OS…';
     }
     const form = $('#login-form');
@@ -703,7 +703,16 @@ python3 app.py</pre>
 async function boot() {
   try {
     const health = await checkHealth();
-    if (health.auth_required && !getAuthCode()) {
+    if (health.auth_required) {
+      const saved = getAuthCode();
+      if (saved) {
+        const ok = await verifyAuth(saved);
+        if (ok) {
+          await startApp();
+          return;
+        }
+        clearAuthCode();
+      }
       showLoginScreen(true);
       return;
     }

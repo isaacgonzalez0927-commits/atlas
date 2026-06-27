@@ -28,14 +28,16 @@ export const ASSET_KEYS = [
 let _clients = [];
 
 export function getAuthCode() {
-  return sessionStorage.getItem(AUTH_KEY) || '';
+  return localStorage.getItem(AUTH_KEY) || sessionStorage.getItem(AUTH_KEY) || '';
 }
 
 export function setAuthCode(code) {
-  sessionStorage.setItem(AUTH_KEY, code);
+  localStorage.setItem(AUTH_KEY, code);
+  sessionStorage.removeItem(AUTH_KEY);
 }
 
 export function clearAuthCode() {
+  localStorage.removeItem(AUTH_KEY);
   sessionStorage.removeItem(AUTH_KEY);
 }
 

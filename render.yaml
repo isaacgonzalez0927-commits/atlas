@@ -29,6 +29,5 @@ services:
       - key: PYTHON_VERSION
         value: "3.12.6"
 
-# Unified Atlas: clients + Nexus lead engine
-# Optional: ATLAS_LEARN_OPENAI=1 for AI score refinement
-# GitHub backup: ATLAS_GITHUB_REPO=youruser/atlas-data
+# One ATLAS_CODE = full app for your team (caller + you). No separate Nexus codes.
+# Optional: GOOGLE_MAPS_API_KEY, OPENAI_API_KEY, ATLAS_GITHUB_TOKEN, ATLAS_GITHUB_REPO
