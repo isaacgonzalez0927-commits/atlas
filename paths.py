@@ -6,7 +6,19 @@ import os
 from pathlib import Path
 
 HERE = Path(__file__).parent
-DATA_ROOT = Path(os.getenv("ATLAS_DATA_DIR", str(HERE / "data")))
+
+
+def _resolve_data_root() -> Path:
+    explicit = os.getenv("ATLAS_DATA_DIR", "").strip()
+    if explicit:
+        return Path(explicit)
+    # Render web services should use the mounted disk at /data when env is unset.
+    if os.getenv("RENDER") == "true":
+        return Path("/data")
+    return HERE / "data"
+
+
+DATA_ROOT = _resolve_data_root()
 DATA_ROOT.mkdir(parents=True, exist_ok=True)
 
 SNAPSHOT_FILE = DATA_ROOT / "atlas_snapshot.json"

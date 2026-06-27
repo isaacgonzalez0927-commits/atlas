@@ -7,7 +7,9 @@ import {
   logLeadOutcome,
   convertLeadToClient,
   fetchFloridaCities,
+  isDemoMode,
 } from './store.js';
+import { getDemoLeads } from './demo.js';
 import { withIcon } from './icons.js';
 
 const OUTCOMES = [
@@ -208,8 +210,12 @@ async function onOutcomeChange(select) {
     });
     await refreshOutcomes();
     select.closest('tr, .lead-card')?.classList.add('lead-called');
-  } catch {
-    alert('Could not save outcome.');
+  } catch (err) {
+    if (err.message === 'demo_mode') {
+      alert('Preview mode — turn off in Settings to log real outcomes.');
+    } else {
+      alert('Could not save outcome.');
+    }
     select.value = getOutcomeForLead(lead);
   } finally {
     select.disabled = false;
@@ -226,8 +232,12 @@ async function onConvert(phone) {
     const sel = document.querySelector(`.lead-outcome[data-phone="${CSS.escape(phone)}"]`);
     if (sel) sel.value = 'client';
     alert(`"${lead.name}" added to Clients.`);
-  } catch {
-    alert('Could not convert lead.');
+  } catch (err) {
+    if (err.message === 'demo_mode') {
+      alert('Preview mode — turn off in Settings to convert leads.');
+    } else {
+      alert('Could not convert lead.');
+    }
   }
 }
 
@@ -293,7 +303,11 @@ export async function bindLeadsPage(onRefresh) {
         }
       }, 2000);
     } catch (err) {
-      status.textContent = err.message || 'Could not start generation.';
+      if (err.message === 'demo_mode') {
+        status.textContent = 'Preview mode — turn off in Settings to generate leads.';
+      } else {
+        status.textContent = err.message || 'Could not start generation.';
+      }
       btn.disabled = false;
     }
   });
@@ -312,6 +326,16 @@ export async function initLeadsPageData() {
   try {
     cities = await fetchFloridaCities();
   } catch { /* ignore */ }
+
+  if (isDemoMode()) {
+    _leads = getDemoLeads();
+    try {
+      await refreshOutcomes();
+    } catch { /* ignore */ }
+    return cities;
+  }
+
+  _leads = [];
   try {
     await refreshOutcomes();
   } catch { /* ignore */ }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import atexit
 import base64
 import json
 import os
@@ -70,6 +71,16 @@ def _has_data(snap: dict) -> bool:
         return True
     hist = snap.get("generated_history") or {}
     return bool(hist.get("phone_keys"))
+
+
+def _data_score(snap: dict | None) -> tuple[int, int, str]:
+    """Higher is better — total records, then clients, then saved_at."""
+    if not snap:
+        return (0, 0, "")
+    clients = len(snap.get("clients") or [])
+    calls = len(snap.get("calls") or [])
+    hist = len((snap.get("generated_history") or {}).get("phone_keys") or [])
+    return (clients + calls + hist, clients, snap.get("saved_at") or "")
 
 
 def apply_snapshot(data: dict) -> None:
@@ -264,46 +275,43 @@ def bootstrap() -> dict:
     _BOOTSTRAP_DONE = True
 
     with _LOCK:
-        if _local_has_data():
-            save_local_snapshot()
-            maybe_sync_remote(force=True)
-            _LAST_BOOTSTRAP = {
-                "status": "ok",
-                "source": "local_db",
-                "clients": len(db.list_clients()),
-                "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
-            }
-            return _LAST_BOOTSTRAP
+        candidates: list[tuple[str, dict]] = []
 
-        local = load_local_snapshot()
-        if local and _has_data(local):
-            apply_snapshot(local)
-            save_local_snapshot()
-            maybe_sync_remote(force=True)
-            _LAST_BOOTSTRAP = {
-                "status": "restored",
-                "source": "local_snapshot",
-                "clients": len(local.get("clients") or []),
-                "calls": len(local.get("calls") or []),
-            }
-            return _LAST_BOOTSTRAP
+        if _local_has_data():
+            local_db = build_snapshot()
+            if _has_data(local_db):
+                candidates.append(("local_db", local_db))
+
+        local_file = load_local_snapshot()
+        if local_file and _has_data(local_file):
+            candidates.append(("local_snapshot", local_file))
 
         remote = fetch_remote_snapshot()
         if remote and _has_data(remote):
-            apply_snapshot(remote)
-            save_local_snapshot()
-            maybe_sync_remote(force=True)
+            candidates.append(("remote", remote))
+
+        if not candidates:
             _LAST_BOOTSTRAP = {
-                "status": "restored",
-                "source": "remote",
-                "clients": len(remote.get("clients") or []),
-                "calls": len(remote.get("calls") or []),
+                "status": "empty",
+                "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
+                "persistence": persistence_info(),
             }
             return _LAST_BOOTSTRAP
 
+        source, best = max(candidates, key=lambda item: _data_score(item[1]))
+
+        if source != "local_db":
+            apply_snapshot(best)
+
+        save_local_snapshot()
+        maybe_sync_remote(force=True)
         _LAST_BOOTSTRAP = {
-            "status": "empty",
+            "status": "ok" if source == "local_db" else "restored",
+            "source": source,
+            "clients": len(best.get("clients") or []),
+            "calls": len(best.get("calls") or []),
             "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
+            "persistence": persistence_info(),
         }
         return _LAST_BOOTSTRAP
 
@@ -361,6 +369,41 @@ def start_recovery_loop() -> None:
     threading.Thread(target=_loop, daemon=True, name="atlas-recovery").start()
 
 
+def persistence_info() -> dict:
+    on_render = os.getenv("RENDER") == "true"
+    root = DATA_ROOT
+    exists = root.exists()
+    writable = os.access(root, os.W_OK) if exists else False
+    using_disk = str(root) == "/data"
+    return {
+        "data_dir": str(root),
+        "exists": exists,
+        "writable": writable,
+        "on_render": on_render,
+        "using_render_disk": on_render and using_disk,
+        "warning": (
+            "Data may be lost on deploy — attach a Render disk at /data "
+            "or set ATLAS_GITHUB_TOKEN + ATLAS_GITHUB_REPO."
+            if on_render and not (writable and using_disk)
+            else None
+        ),
+    }
+
+
+def flush_on_shutdown() -> None:
+    try:
+        snap = build_snapshot()
+        if _has_data(snap):
+            with _LOCK:
+                _atomic_write(SNAPSHOT_FILE, json.dumps(snap, indent=2))
+            maybe_sync_remote(force=True)
+    except Exception:
+        pass
+
+
+atexit.register(flush_on_shutdown)
+
+
 def status() -> dict:
     clients = db.list_clients()
     try:
@@ -386,4 +429,5 @@ def status() -> dict:
         "last_bootstrap": _LAST_BOOTSTRAP,
         "remote": "github" if gh else ("url" if os.getenv("ATLAS_BACKUP_URL") else "none"),
         "data_dir": str(DATA_ROOT),
+        "persistence": persistence_info(),
     }

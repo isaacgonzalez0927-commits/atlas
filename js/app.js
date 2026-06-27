@@ -29,19 +29,38 @@ import {
   fetchLeadStats,
   fetchLeadLearning,
   fetchStorageStatus,
+  isDemoMode,
+  setDemoMode,
 } from './store.js';
 import {
   renderLeadsPage,
   bindLeadsPage,
   initLeadsPageData,
 } from './leads.js';
-import { withIcon } from './icons.js';
+import { withIcon, hydrateIcons } from './icons.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
 let modalCallback = null;
 let _booted = false;
+
+function demoBannerHtml() {
+  if (!isDemoMode()) return '';
+  return `<div class="demo-banner" role="status">
+    <span class="demo-banner-icon" data-icon="info" data-icon-size="16"></span>
+    <span class="demo-banner-text"><strong>Preview mode</strong> — sample clients and stats. Your real data is unchanged.</span>
+    <a href="#/settings" class="demo-banner-link">Turn off</a>
+  </div>`;
+}
+
+function previewBlocked() {
+  alert('Preview mode is on. Turn it off in Settings to edit real data.');
+}
+
+function isDemoError(err) {
+  return err?.message === 'demo_mode';
+}
 
 function showLoading() {
   const main = $('#main-content');
@@ -237,10 +256,22 @@ function renderAnalyticsHtml(stats, learning) {
 }
 
 function renderSettingsHtml(storage) {
+  const demoOn = isDemoMode();
   return `
     <div class="page-header">
       <h1>Settings</h1>
       <p>Backup, storage, and more</p>
+    </div>
+    <div class="panel demo-panel">
+      <h2>Preview mode</h2>
+      <p style="color:var(--muted);font-size:0.85rem;line-height:1.5;margin-bottom:14px;">
+        See what Atlas looks like with 14 sample HVAC clients, a full call list on Leads, open requests, notes, and analytics — without changing your real data.
+      </p>
+      <label class="demo-toggle">
+        <input type="checkbox" id="demo-mode-toggle" ${demoOn ? 'checked' : ''}>
+        <span class="demo-toggle-track" aria-hidden="true"></span>
+        <span>Show demo data</span>
+      </label>
     </div>
     <div class="panel">
       <h2>Quick Links</h2>
@@ -262,6 +293,7 @@ function renderSettingsHtml(storage) {
     </div>
     <div class="panel">
       <h2>Storage</h2>
+      ${demoOn ? '<p class="demo-storage-note">Showing sample counts while preview mode is on.</p>' : ''}
       <div class="info-grid">
         <div><span class="muted">Clients</span><br>${storage?.clients_in_db ?? '—'}</div>
         <div><span class="muted">Calls logged</span><br>${storage?.calls_in_db ?? '—'}</div>
@@ -584,49 +616,64 @@ async function render() {
   const route = parseRoute();
   const main = $('#main-content');
   setActiveNav(route);
+  document.body.classList.toggle('demo-mode', isDemoMode());
+
+  let content = '';
+  let afterRender = () => {};
 
   try {
     if (!route.length || route[0] === 'dashboard') {
-      main.innerHTML = '<div class="loading">Loading dashboard…</div>';
+      content = '<div class="loading">Loading dashboard…</div>';
+      main.innerHTML = demoBannerHtml() + content;
       const dash = await fetchDashboard();
-      main.innerHTML = renderDashboardHtml(dash);
+      content = renderDashboardHtml(dash);
     } else if (route[0] === 'leads') {
+      content = '<div class="loading">Loading leads…</div>';
+      main.innerHTML = demoBannerHtml() + content;
       const cities = await initLeadsPageData();
-      main.innerHTML = renderLeadsPage(cities);
-      await bindLeadsPage(() => render());
+      content = renderLeadsPage(cities);
+      afterRender = () => bindLeadsPage(() => render());
     } else if (route[0] === 'clients' && route.length === 1) {
-      main.innerHTML = renderClientsList();
-      bindClientsList();
+      content = renderClientsList();
+      afterRender = () => bindClientsList();
     } else if (route[0] === 'clients' && route.length >= 2) {
       const tab = route[2] || 'overview';
-      main.innerHTML = renderClientDetail(route[1], tab);
-      bindClientDetail(route[1], tab);
+      content = renderClientDetail(route[1], tab);
+      afterRender = () => bindClientDetail(route[1], tab);
     } else if (route[0] === 'assets') {
-      main.innerHTML = renderAssetsPage();
+      content = renderAssetsPage();
     } else if (route[0] === 'requests') {
-      main.innerHTML = renderRequestsPage();
-      bindRequestsPage();
+      content = renderRequestsPage();
+      afterRender = () => bindRequestsPage();
     } else if (route[0] === 'notes') {
-      main.innerHTML = renderNotesPage();
-      bindNotesPage();
+      content = renderNotesPage();
+      afterRender = () => bindNotesPage();
     } else if (route[0] === 'analytics') {
-      main.innerHTML = '<div class="loading">Loading analytics…</div>';
+      content = '<div class="loading">Loading analytics…</div>';
+      main.innerHTML = demoBannerHtml() + content;
       const [stats, learning] = await Promise.all([
         fetchLeadStats(),
         fetchLeadLearning(),
       ]);
-      main.innerHTML = renderAnalyticsHtml(stats, learning);
+      content = renderAnalyticsHtml(stats, learning);
     } else if (route[0] === 'settings') {
       const storage = await fetchStorageStatus();
-      main.innerHTML = renderSettingsHtml(storage);
-      bindBackupButtons();
+      content = renderSettingsHtml(storage);
+      afterRender = () => {
+        bindSettingsPage();
+        bindBackupButtons();
+      };
     } else {
       const dash = await fetchDashboard();
-      main.innerHTML = renderDashboardHtml(dash);
+      content = renderDashboardHtml(dash);
     }
   } catch {
-    main.innerHTML = '<div class="empty panel">Could not load this page. Check your connection.</div>';
+    content = '<div class="empty panel">Could not load this page. Check your connection.</div>';
   }
+
+  main.innerHTML = demoBannerHtml() + content;
+  hydrateIcons(main);
+  afterRender();
   window.scrollTo(0, 0);
 }
 
@@ -737,8 +784,9 @@ function showClientModal(existing) {
       closeModal();
       await render();
       return true;
-    } catch {
-      alert('Could not save client. Check your connection.');
+    } catch (err) {
+      if (isDemoError(err)) previewBlocked();
+      else alert('Could not save client. Check your connection.');
       return false;
     }
   });
@@ -777,8 +825,9 @@ function showRequestModal(clientId = null, existing = null) {
       closeModal();
       await render();
       return true;
-    } catch {
-      alert('Could not save request.');
+    } catch (err) {
+      if (isDemoError(err)) previewBlocked();
+      else alert('Could not save request.');
       return false;
     }
   });
@@ -815,8 +864,9 @@ function showNoteModal(clientId = null, existing = null) {
       closeModal();
       await render();
       return true;
-    } catch {
-      alert('Could not save note.');
+    } catch (err) {
+      if (isDemoError(err)) previewBlocked();
+      else alert('Could not save note.');
       return false;
     }
   });
@@ -831,21 +881,31 @@ function showNoteModal(clientId = null, existing = null) {
     </form>`;
 }
 
+function bindDemoGuard(fn) {
+  return (e) => {
+    if (isDemoMode()) {
+      e?.preventDefault?.();
+      e?.stopPropagation?.();
+      previewBlocked();
+      return;
+    }
+    fn(e);
+  };
+}
+
 function bindClientsList() {
-  $('#btn-add-client')?.addEventListener('click', () => showClientModal());
+  $('#btn-add-client')?.addEventListener('click', bindDemoGuard(() => showClientModal()));
   $$('[data-edit-client]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', bindDemoGuard(() => {
       const c = getClient(btn.dataset.editClient);
       if (c) showClientModal(c);
-    });
+    }));
   });
   $$('[data-delete-client]').forEach((btn) => {
-    btn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    btn.addEventListener('click', bindDemoGuard(async () => {
       const c = getClient(btn.dataset.deleteClient);
       if (c) await confirmDeleteClient(c);
-    });
+    }));
   });
 }
 
@@ -858,32 +918,33 @@ async function confirmDeleteClient(client) {
     await deleteClient(client.id);
     location.hash = '#/clients';
     await render();
-  } catch {
-    alert('Could not delete client. Check your connection.');
+  } catch (err) {
+    if (isDemoError(err)) previewBlocked();
+    else alert('Could not delete client. Check your connection.');
   }
 }
 
 function bindRequestsPage() {
-  $('#btn-add-request')?.addEventListener('click', () => showRequestModal());
+  $('#btn-add-request')?.addEventListener('click', bindDemoGuard(() => showRequestModal()));
   $$('[data-update-request]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', bindDemoGuard(() => {
       const [cid, rid] = btn.dataset.updateRequest.split(':');
       const c = getClient(cid);
       const r = c?.requests?.find((x) => x.id === rid);
       if (r) showRequestModal(cid, { ...r, clientId: cid });
-    });
+    }));
   });
 }
 
 function bindNotesPage() {
-  $('#btn-add-note')?.addEventListener('click', () => showNoteModal());
+  $('#btn-add-note')?.addEventListener('click', bindDemoGuard(() => showNoteModal()));
   $$('[data-edit-note]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', bindDemoGuard(() => {
       const [cid, nid] = btn.dataset.editNote.split(':');
       const c = getClient(cid);
       const n = c?.notes?.find((x) => x.id === nid);
       if (n) showNoteModal(cid, { ...n, clientId: cid });
-    });
+    }));
   });
 }
 
@@ -894,62 +955,94 @@ function bindClientDetail(clientId, tab) {
     });
   });
 
-  $('#btn-edit-client-detail')?.addEventListener('click', () => {
+  $('#btn-edit-client-detail')?.addEventListener('click', bindDemoGuard(() => {
     const c = getClient(clientId);
     if (c) showClientModal(c);
-  });
+  }));
 
-  $('#btn-delete-client-detail')?.addEventListener('click', async () => {
+  $('#btn-delete-client-detail')?.addEventListener('click', bindDemoGuard(async () => {
     const c = getClient(clientId);
     if (c) await confirmDeleteClient(c);
-  });
+  }));
 
   $$('.asset-check').forEach((cb) => {
+    if (isDemoMode()) {
+      cb.disabled = true;
+      return;
+    }
     cb.addEventListener('change', async () => {
       const key = cb.dataset.assetKey;
       try {
         await updateAssets(clientId, { [key]: cb.checked });
-      } catch {
+      } catch (err) {
         cb.checked = !cb.checked;
-        alert('Could not update asset.');
+        if (isDemoError(err)) previewBlocked();
+        else alert('Could not update asset.');
       }
     });
   });
 
-  $('#btn-add-request-client')?.addEventListener('click', () => showRequestModal(clientId));
-  $('#btn-add-note-client')?.addEventListener('click', () => showNoteModal(clientId));
+  $('#btn-add-request-client')?.addEventListener('click', bindDemoGuard(() => showRequestModal(clientId)));
+  $('#btn-add-note-client')?.addEventListener('click', bindDemoGuard(() => showNoteModal(clientId)));
 
   $$('[data-update-request]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', bindDemoGuard(() => {
       const [cid, rid] = btn.dataset.updateRequest.split(':');
       const c = getClient(cid);
       const r = c?.requests?.find((x) => x.id === rid);
       if (r) showRequestModal(cid, { ...r, clientId: cid });
-    });
+    }));
   });
 
   $$('[data-edit-note]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', bindDemoGuard(() => {
       const [cid, nid] = btn.dataset.editNote.split(':');
       const c = getClient(cid);
       const n = c?.notes?.find((x) => x.id === nid);
       if (n) showNoteModal(cid, { ...n, clientId: cid });
-    });
+    }));
+  });
+}
+
+function bindSettingsPage() {
+  const toggle = $('#demo-mode-toggle');
+  if (!toggle || toggle.dataset.bound) return;
+  toggle.dataset.bound = '1';
+  toggle.addEventListener('change', async (e) => {
+    setDemoMode(e.target.checked);
+    await render();
   });
 }
 
 function bindBackupButtons() {
-  $('#btn-export-backup')?.addEventListener('click', async () => {
-    try {
-      await exportBackup();
-    } catch {
-      alert('Export failed. Check your connection.');
-    }
-  });
+  const exp = $('#btn-export-backup');
+  if (exp && !exp.dataset.bound) {
+    exp.dataset.bound = '1';
+    exp.addEventListener('click', async () => {
+      if (isDemoMode()) {
+        previewBlocked();
+        return;
+      }
+      try {
+        await exportBackup();
+      } catch (err) {
+        if (isDemoError(err)) previewBlocked();
+        else alert('Export failed. Check your connection.');
+      }
+    });
+  }
 
-  $('#btn-import-backup')?.addEventListener('click', () => {
-    $('#import-file')?.click();
-  });
+  const imp = $('#btn-import-backup');
+  if (imp && !imp.dataset.bound) {
+    imp.dataset.bound = '1';
+    imp.addEventListener('click', () => {
+      if (isDemoMode()) {
+        previewBlocked();
+        return;
+      }
+      $('#import-file')?.click();
+    });
+  }
 }
 
 function init() {
@@ -986,14 +1079,23 @@ function init() {
   bindBackupButtons();
 
   $('#sidebar-export')?.addEventListener('click', async () => {
+    if (isDemoMode()) {
+      previewBlocked();
+      return;
+    }
     try {
       await exportBackup();
-    } catch {
-      alert('Export failed.');
+    } catch (err) {
+      if (isDemoError(err)) previewBlocked();
+      else alert('Export failed.');
     }
   });
 
   $('#sidebar-import')?.addEventListener('click', () => {
+    if (isDemoMode()) {
+      previewBlocked();
+      return;
+    }
     $('#import-file')?.click();
   });
 
@@ -1001,6 +1103,10 @@ function init() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    if (isDemoMode()) {
+      previewBlocked();
+      return;
+    }
     const count = loadClients().length;
     const msg = count
       ? `Replace all data (${count} client(s)) with this backup? Calls and lead history will also be replaced.`
@@ -1010,8 +1116,9 @@ function init() {
       await importBackup(file);
       await render();
       alert('Backup restored successfully.');
-    } catch {
-      alert('Import failed. Make sure the file is a valid Atlas OS backup (.json).');
+    } catch (err) {
+      if (isDemoError(err)) previewBlocked();
+      else alert('Import failed. Make sure the file is a valid Atlas OS backup (.json).');
     }
   });
 }

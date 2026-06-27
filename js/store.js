@@ -1,6 +1,16 @@
 /** Atlas V0 — API client + in-memory cache (syncs across devices). */
 
+import {
+  getDemoClients,
+  getDemoDashboard,
+  getDemoLeadOutcomes,
+  getDemoLearning,
+  getDemoStats,
+  getDemoStorage,
+} from './demo.js';
+
 const AUTH_KEY = 'atlas_auth_code';
+const DEMO_KEY = 'atlas_demo_mode';
 const LEGACY_STORAGE_KEY = 'ascend_atlas_data';
 
 export const CLIENT_STATUSES = {
@@ -26,6 +36,18 @@ export const ASSET_KEYS = [
 ];
 
 let _clients = [];
+
+export function isDemoMode() {
+  return localStorage.getItem(DEMO_KEY) === '1';
+}
+
+export function setDemoMode(on) {
+  localStorage.setItem(DEMO_KEY, on ? '1' : '0');
+}
+
+function demoBlocked() {
+  if (isDemoMode()) throw new Error('demo_mode');
+}
 
 export function getAuthCode() {
   return localStorage.getItem(AUTH_KEY) || sessionStorage.getItem(AUTH_KEY) || '';
@@ -125,14 +147,17 @@ export async function refreshClients() {
 
 /** Sync read from cache — call after initStore / refreshClients. */
 export function loadClients() {
+  if (isDemoMode()) return getDemoClients();
   return _clients;
 }
 
 export function getClient(id) {
-  return _clients.find((c) => c.id === id) || null;
+  const list = isDemoMode() ? getDemoClients() : _clients;
+  return list.find((c) => c.id === id) || null;
 }
 
 export async function upsertClient(data) {
+  demoBlocked();
   if (data.id) {
     const client = await api('PUT', `/api/clients/${data.id}`, data);
     await refreshClients();
@@ -144,6 +169,7 @@ export async function upsertClient(data) {
 }
 
 export async function deleteClient(id) {
+  demoBlocked();
   await api('DELETE', `/api/clients/${id}`);
   await refreshClients();
 }
@@ -179,30 +205,35 @@ export function allNotes(clients) {
 }
 
 export async function addRequest(clientId, req) {
+  demoBlocked();
   const item = await api('POST', `/api/clients/${clientId}/requests`, req);
   await refreshClients();
   return item;
 }
 
 export async function updateRequest(clientId, requestId, patch) {
+  demoBlocked();
   const item = await api('PUT', `/api/clients/${clientId}/requests/${requestId}`, patch);
   await refreshClients();
   return item;
 }
 
 export async function addNote(clientId, text) {
+  demoBlocked();
   const note = await api('POST', `/api/clients/${clientId}/notes`, { text });
   await refreshClients();
   return note;
 }
 
 export async function updateNote(clientId, noteId, text) {
+  demoBlocked();
   const note = await api('PUT', `/api/clients/${clientId}/notes/${noteId}`, { text });
   await refreshClients();
   return note;
 }
 
 export async function updateAssets(clientId, assets) {
+  demoBlocked();
   await api('PATCH', `/api/clients/${clientId}/assets`, assets);
   await refreshClients();
 }
@@ -247,6 +278,7 @@ export function recentActivity(clients, limit = 12) {
 }
 
 export async function exportBackup() {
+  demoBlocked();
   const data = await api('GET', '/api/export');
   const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -262,6 +294,7 @@ export async function exportBackup() {
 }
 
 export async function importBackup(file) {
+  demoBlocked();
   const text = await file.text();
   const parsed = JSON.parse(text);
   const clients = Array.isArray(parsed) ? parsed : (parsed.clients || []);
@@ -279,6 +312,7 @@ export async function importBackup(file) {
 // ---------------------------------------------------------------------------
 
 export async function fetchDashboard() {
+  if (isDemoMode()) return getDemoDashboard();
   return api('GET', '/api/dashboard');
 }
 
@@ -287,6 +321,7 @@ export async function fetchFloridaCities() {
 }
 
 export async function generateLeads(body) {
+  demoBlocked();
   return api('POST', '/api/leads/generate', body);
 }
 
@@ -295,14 +330,17 @@ export async function pollLeadJob(jobId) {
 }
 
 export async function fetchLeadOutcomes() {
+  if (isDemoMode()) return getDemoLeadOutcomes();
   return api('GET', '/api/leads/outcomes');
 }
 
 export async function logLeadOutcome(data) {
+  demoBlocked();
   return api('POST', '/api/leads/log-outcome', data);
 }
 
 export async function convertLeadToClient(lead) {
+  demoBlocked();
   const result = await api('POST', '/api/leads/convert-to-client', {
     business_name: lead.name,
     phone: lead.phone,
@@ -321,13 +359,16 @@ export async function fetchLeadHistory(params = {}) {
 }
 
 export async function fetchLeadStats() {
+  if (isDemoMode()) return getDemoStats();
   return api('GET', '/api/leads/stats');
 }
 
 export async function fetchLeadLearning() {
+  if (isDemoMode()) return getDemoLearning();
   return api('GET', '/api/leads/learning');
 }
 
 export async function fetchStorageStatus() {
+  if (isDemoMode()) return getDemoStorage();
   return api('GET', '/api/storage');
 }
