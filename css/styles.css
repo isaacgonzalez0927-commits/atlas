@@ -428,13 +428,91 @@ a:hover { color: var(--accent-hover); }
   font-weight: 500;
 }
 
-.card-mrr {
-  border-color: color-mix(in srgb, var(--green) 35%, var(--border));
-  background: color-mix(in srgb, var(--green) 6%, var(--card));
+/* ── MRR hero (dashboard revenue) ── */
+.mrr-hero {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+  padding: 28px 32px;
+  border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--green) 28%, var(--border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--green) 10%, var(--card)) 0%,
+      var(--card) 55%
+    );
+  box-shadow: var(--shadow);
 }
 
-.card-mrr .num {
+.mrr-hero-body {
+  flex: 1;
+  min-width: 200px;
+}
+
+.mrr-hero-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+.mrr-hero-amount {
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  font-weight: 700;
   color: var(--green);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mrr-hero-meta {
+  margin-top: 10px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.mrr-hero-aside {
+  display: flex;
+  align-items: center;
+  padding-left: 24px;
+  border-left: 1px solid var(--border);
+}
+
+.mrr-hero-stat-val {
+  font-size: 1.375rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.mrr-hero-stat-lbl {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .mrr-hero {
+    padding: 22px 20px;
+    gap: 20px;
+  }
+
+  .mrr-hero-aside {
+    width: 100%;
+    padding-left: 0;
+    padding-top: 16px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
 }
 
 /* ── Panels ── */
