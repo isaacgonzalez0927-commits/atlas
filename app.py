@@ -105,6 +105,7 @@ def api_dashboard():
         for k in ("live", "building", "waiting_on_client", "onboarding")
         if pipeline_counts[k] > 0
     ]
+    revenue = db.compute_mrr(clients)
 
     total_leads = lead_stats.get("total", 0)
     called = total_leads
@@ -117,6 +118,8 @@ def api_dashboard():
             "total": len(clients),
             "active": active_clients,
             "open_requests": requests_open,
+            "mrr": revenue["mrr"],
+            "paying_clients": revenue["paying_clients"],
         },
         "leads": {
             "total": total_leads,

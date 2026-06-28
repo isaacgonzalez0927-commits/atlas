@@ -125,6 +125,20 @@ function fmtDateTime(iso) {
   }
 }
 
+function fmtMoney(amount) {
+  const num = Number(amount) || 0;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(num);
+}
+
+function fmtMonthlyCharge(c) {
+  const amount = Number(c?.monthlyCharge) || 0;
+  return amount > 0 ? fmtMoney(amount) : '—';
+}
+
 function statusBadge(status, map, prefix) {
   const label = map[status] || status;
   const cls = `${prefix}-${status.replace(/_/g, '-')}`;
@@ -166,6 +180,7 @@ function clientFormFields(c = {}) {
       <div class="field"><label>Website</label><input name="website" value="${esc(c.website || '')}" placeholder="https://"></div>
       <div class="field"><label>Status</label><select name="status">${opts}</select></div>
       <div class="field"><label>Date Signed</label><input name="dateSigned" type="date" value="${esc(c.dateSigned || '')}"></div>
+      <div class="field"><label>Monthly Charge ($)</label><input name="monthlyCharge" type="number" min="0" step="1" inputmode="decimal" value="${c.monthlyCharge ? esc(String(c.monthlyCharge)) : ''}" placeholder="297"></div>
     </div>`;
 }
 
@@ -179,6 +194,7 @@ function readClientForm(form) {
     website: fd.get('website')?.toString().trim() || '',
     status: fd.get('status')?.toString() || 'onboarding',
     dateSigned: fd.get('dateSigned')?.toString() || new Date().toISOString().slice(0, 10),
+    monthlyCharge: Math.max(0, parseFloat(fd.get('monthlyCharge')?.toString() || '0') || 0),
   };
 }
 
@@ -193,6 +209,7 @@ function renderDashboardHtml(dash) {
       <p>Ascend operations at a glance</p>
     </div>
     <div class="grid">
+      <div class="card card-mrr"><div class="num">${fmtMoney(clients.mrr ?? 0)}</div><div class="lbl">MRR · ${clients.paying_clients ?? 0} paying</div></div>
       <div class="card"><div class="num">${leads.total ?? 0}</div><div class="lbl">Total Leads Called</div></div>
       <div class="card"><div class="num">${leads.previews ?? 0}</div><div class="lbl">Previews</div></div>
       <div class="card"><div class="num">${leads.clients ?? 0}</div><div class="lbl">Clients Won</div></div>
@@ -313,10 +330,11 @@ function renderClientsList() {
       <td><a href="#/clients/${c.id}">${esc(c.businessName)}</a></td>
       <td>${esc(c.contactName)}</td>
       <td>${clientStatusBadge(c.status)}</td>
+      <td>${fmtMonthlyCharge(c)}</td>
       <td>${fmtDate(c.dateSigned)}</td>
       <td><button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">${withIcon('edit', 'Edit')}</button>
           <button class="btn btn-danger btn-sm" data-delete-client="${c.id}">${withIcon('delete', 'Delete')}</button></td>
-    </tr>`).join('') : '<tr><td colspan="5" class="empty">No clients yet — tap Add Client to start.</td></tr>';
+    </tr>`).join('') : '<tr><td colspan="6" class="empty">No clients yet — tap Add Client to start.</td></tr>';
 
   const mobileCards = clients.length ? clients.map((c) => `
     <div class="list-card">
@@ -324,7 +342,7 @@ function renderClientsList() {
         <a href="#/clients/${c.id}" class="list-card-title">${esc(c.businessName)}</a>
         ${clientStatusBadge(c.status)}
       </div>
-      <div class="list-card-meta">${esc(c.contactName)} · Signed ${fmtDate(c.dateSigned)}</div>
+      <div class="list-card-meta">${esc(c.contactName)} · ${fmtMonthlyCharge(c)}/mo · Signed ${fmtDate(c.dateSigned)}</div>
       <div class="list-card-actions">
         <a href="#/clients/${c.id}" class="btn btn-primary btn-sm">${withIcon('view', 'View')}</a>
         <button class="btn btn-ghost btn-sm" data-edit-client="${c.id}">${withIcon('edit', 'Edit')}</button>
@@ -347,6 +365,7 @@ function renderClientsList() {
             <th>Business</th>
             <th>Contact</th>
             <th>Status</th>
+            <th>Monthly</th>
             <th>Signed</th>
             <th></th>
           </tr>
@@ -511,6 +530,7 @@ function renderClientDetail(id, tab = 'overview') {
   if (tab === 'overview') {
     tabContent = `
       <div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); margin-bottom:20px;">
+        <div class="card"><div class="num">${client.status === 'live' && client.monthlyCharge ? fmtMoney(client.monthlyCharge) : '—'}</div><div class="lbl">Monthly</div></div>
         <div class="card"><div class="num">${pct}%</div><div class="lbl">Assets</div></div>
         <div class="card"><div class="num">${openReqs.length}</div><div class="lbl">Open Requests</div></div>
         <div class="card"><div class="num">${(client.notes || []).length}</div><div class="lbl">Notes</div></div>
@@ -522,6 +542,7 @@ function renderClientDetail(id, tab = 'overview') {
           <div><div class="info-label">Email</div><div class="info-value">${esc(client.email) || '—'}</div></div>
           <div><div class="info-label">Phone</div><div class="info-value">${esc(client.phone) || '—'}</div></div>
           <div><div class="info-label">Website</div><div class="info-value">${client.website ? `<a href="${esc(client.website)}" target="_blank" rel="noopener">${esc(client.website)}</a>` : '—'}</div></div>
+          <div><div class="info-label">Monthly Charge</div><div class="info-value">${fmtMonthlyCharge(client)}</div></div>
           <div><div class="info-label">Status</div><div class="info-value">${clientStatusBadge(client.status)}</div></div>
           <div><div class="info-label">Date Signed</div><div class="info-value">${fmtDate(client.dateSigned)}</div></div>
         </div>

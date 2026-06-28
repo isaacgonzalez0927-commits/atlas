@@ -50,6 +50,7 @@ def init_db() -> None:
                 website TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL DEFAULT 'onboarding',
                 date_signed TEXT NOT NULL DEFAULT '',
+                monthly_charge REAL NOT NULL DEFAULT 0,
                 assets_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
@@ -78,8 +79,37 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_notes_client ON notes(client_id);
             """
         )
+        cols = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(clients)").fetchall()
+        }
+        if "monthly_charge" not in cols:
+            conn.execute(
+                "ALTER TABLE clients ADD COLUMN monthly_charge REAL NOT NULL DEFAULT 0"
+            )
         conn.commit()
         conn.close()
+
+
+def _parse_monthly_charge(value) -> float:
+    try:
+        amount = float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return round(max(0.0, amount), 2)
+
+
+def compute_mrr(clients: list[dict]) -> dict:
+    """MRR = sum of monthly charges for live clients."""
+    paying = [
+        c for c in clients
+        if c.get("status") == "live" and _parse_monthly_charge(c.get("monthlyCharge")) > 0
+    ]
+    total = sum(_parse_monthly_charge(c.get("monthlyCharge")) for c in paying)
+    return {
+        "mrr": round(total, 2),
+        "paying_clients": len(paying),
+    }
 
 
 def _empty_assets() -> dict:
@@ -107,6 +137,7 @@ def _row_to_client(row: sqlite3.Row, requests: list, notes: list) -> dict:
         "website": row["website"],
         "status": row["status"],
         "dateSigned": row["date_signed"],
+        "monthlyCharge": _parse_monthly_charge(row["monthly_charge"]),
         "assets": _parse_assets(row["assets_json"]),
         "requests": requests,
         "notes": notes,
@@ -168,14 +199,15 @@ def create_client(data: dict) -> dict:
     cid = data.get("id") or str(uuid.uuid4())
     now = _now_iso()
     assets = data.get("assets") or _empty_assets()
+    monthly = _parse_monthly_charge(data.get("monthlyCharge"))
     with _DB_LOCK:
         conn = _conn()
         conn.execute(
             """
             INSERT INTO clients (
                 id, business_name, contact_name, email, phone, website,
-                status, date_signed, assets_json, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, date_signed, monthly_charge, assets_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 cid,
@@ -186,6 +218,7 @@ def create_client(data: dict) -> dict:
                 data.get("website", ""),
                 data.get("status", "onboarding"),
                 data.get("dateSigned", ""),
+                monthly,
                 json.dumps(assets),
                 now,
                 now,
@@ -202,14 +235,15 @@ def update_client(client_id: str, data: dict) -> dict | None:
         return None
     merged = {**existing, **data, "id": client_id}
     assets = merged.get("assets", existing["assets"])
+    monthly = _parse_monthly_charge(merged.get("monthlyCharge"))
     with _DB_LOCK:
         conn = _conn()
         conn.execute(
             """
             UPDATE clients SET
                 business_name = ?, contact_name = ?, email = ?, phone = ?,
-                website = ?, status = ?, date_signed = ?, assets_json = ?,
-                updated_at = ?
+                website = ?, status = ?, date_signed = ?, monthly_charge = ?,
+                assets_json = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -220,6 +254,7 @@ def update_client(client_id: str, data: dict) -> dict | None:
                 merged.get("website", ""),
                 merged.get("status", "onboarding"),
                 merged.get("dateSigned", ""),
+                monthly,
                 json.dumps(assets),
                 _now_iso(),
                 client_id,

@@ -30,6 +30,7 @@ export function getDemoClients() {
       website: 'https://gulfcoastair.com',
       status: 'live',
       dateSigned: daysAgo(94),
+      monthlyCharge: 297,
       assets: assets(['logo', 'photos', 'phone', 'email', 'services', 'about']),
       requests: [
         { id: 'dr-1', title: 'Add financing page', description: 'Customer asked for financing options.', status: 'submitted', dateSubmitted: daysAgo(3) },
@@ -87,6 +88,7 @@ export function getDemoClients() {
       website: 'https://firstcoastcomfort.com',
       status: 'live',
       dateSigned: daysAgo(120),
+      monthlyCharge: 347,
       assets: assets(['logo', 'photos', 'phone', 'email', 'services', 'about']),
       requests: [
         { id: 'dr-4', title: 'Update summer promo banner', description: '$49 tune-up special.', status: 'complete', dateSubmitted: daysAgo(22) },
@@ -117,6 +119,7 @@ export function getDemoClients() {
       website: 'https://emeraldcoasthvac.com',
       status: 'live',
       dateSigned: daysAgo(67),
+      monthlyCharge: 297,
       assets: assets(['logo', 'photos', 'phone', 'email', 'services', 'about']),
       requests: [],
       notes: [],
@@ -145,6 +148,7 @@ export function getDemoClients() {
       website: 'https://gainesvilleair.com',
       status: 'live',
       dateSigned: daysAgo(88),
+      monthlyCharge: 397,
       assets: assets(['logo', 'photos', 'phone', 'email', 'services', 'about']),
       requests: [
         { id: 'dr-7', title: 'Add commercial services page', description: '', status: 'in_progress', dateSubmitted: daysAgo(9) },
@@ -173,6 +177,7 @@ export function getDemoClients() {
       website: 'https://fmcomfort.com',
       status: 'live',
       dateSigned: daysAgo(45),
+      monthlyCharge: 297,
       assets: assets(['logo', 'photos', 'phone', 'email', 'services', 'about']),
       requests: [],
       notes: [],
@@ -214,6 +219,7 @@ export function getDemoClients() {
       website: 'https://daytonaairmasters.com',
       status: 'live',
       dateSigned: daysAgo(72),
+      monthlyCharge: 347,
       assets: assets(['logo', 'photos', 'phone', 'email', 'services', 'about']),
       requests: [
         { id: 'dr-9', title: 'SSL certificate renewal', description: 'Annual check.', status: 'complete', dateSubmitted: daysAgo(30) },
@@ -224,8 +230,19 @@ export function getDemoClients() {
 }
 
 export function getDemoDashboard() {
+  const paying = getDemoClients().filter(
+    (c) => c.status === 'live' && (c.monthlyCharge || 0) > 0,
+  );
+  const mrr = paying.reduce((sum, c) => sum + (c.monthlyCharge || 0), 0);
+
   return {
-    clients: { total: 14, active: 11, open_requests: 7 },
+    clients: {
+      total: 14,
+      active: 11,
+      open_requests: 7,
+      mrr,
+      paying_clients: paying.length,
+    },
     leads: {
       total: 186,
       called: 186,
