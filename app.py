@@ -24,13 +24,13 @@ CALLER_NAME = os.getenv("CALLER_NAME", "sebastien").strip()
 
 app = Flask(__name__, static_folder=str(HERE), static_url_path="")
 
-# Restore + periodic save at worker startup (not only first browser request).
+# Fast local restore only — remote GitHub pull runs in a background thread.
 db.init_db()
 tracking.init_db()
 _boot = storage.bootstrap()
 storage.start_periodic_save()
 storage.start_recovery_loop()
-print(f"[atlas] storage bootstrap: {_boot}", flush=True)
+print(f"[atlas] ready (bootstrap: {_boot})", flush=True)
 
 
 def _auth_ok() -> bool:
@@ -72,6 +72,7 @@ def health():
         "ok": True,
         "auth_required": bool(ATLAS_CODE),
         "google_maps_configured": bool(os.getenv("GOOGLE_MAPS_API_KEY", "").strip()),
+        "boot": storage.status().get("last_bootstrap"),
     })
 
 

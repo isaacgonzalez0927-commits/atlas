@@ -18,7 +18,8 @@ from paths import DATA_ROOT, HISTORY_FILE, LEARN_CACHE_FILE, SNAPSHOT_FILE
 SNAPSHOT_VERSION = 2
 SYNC_DEBOUNCE_SEC = 20
 PERIODIC_SAVE_SEC = 180
-REMOTE_RETRIES = 5
+REMOTE_RETRIES = 3
+REMOTE_TIMEOUT_SEC = 10
 RECOVERY_POLL_SEC = 60
 _LAST_BOOTSTRAP: dict = {}
 _RECOVERY_STARTED = False
@@ -132,7 +133,7 @@ def _github_headers(token: str) -> dict:
     }
 
 
-def _fetch_remote_once() -> dict | None:
+def _fetch_remote_once(timeout: float = REMOTE_TIMEOUT_SEC) -> dict | None:
     gh = _github_config()
     if gh:
         token, repo, path = gh
@@ -140,7 +141,7 @@ def _fetch_remote_once() -> dict | None:
             import requests
 
             url = f"https://api.github.com/repos/{repo}/contents/{path}"
-            resp = requests.get(url, headers=_github_headers(token), timeout=30)
+            resp = requests.get(url, headers=_github_headers(token), timeout=timeout)
             if resp.status_code == 404:
                 return None
             if not resp.ok:
@@ -161,7 +162,7 @@ def _fetch_remote_once() -> dict | None:
         tok = os.getenv("ATLAS_BACKUP_TOKEN", "").strip()
         if tok:
             headers["Authorization"] = f"Bearer {tok}"
-        resp = requests.get(url, headers=headers, timeout=30)
+        resp = requests.get(url, headers=headers, timeout=timeout)
         if resp.ok:
             return resp.json()
     except ImportError:
@@ -268,6 +269,74 @@ def _local_has_data() -> bool:
     return bool(hist and hist.get("phone_keys"))
 
 
+def _apply_best_snapshot(source: str, best: dict) -> dict:
+    if source != "local_db":
+        apply_snapshot(best)
+    save_local_snapshot()
+    maybe_sync_remote(force=True)
+    return {
+        "status": "ok" if source == "local_db" else "restored",
+        "source": source,
+        "clients": len(best.get("clients") or []),
+        "calls": len(best.get("calls") or []),
+        "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
+        "persistence": persistence_info(),
+    }
+
+
+def _local_bootstrap_candidates() -> list[tuple[str, dict]]:
+    candidates: list[tuple[str, dict]] = []
+    if _local_has_data():
+        local_db = build_snapshot()
+        if _has_data(local_db):
+            candidates.append(("local_db", local_db))
+    local_file = load_local_snapshot()
+    if local_file and _has_data(local_file):
+        candidates.append(("local_snapshot", local_file))
+    return candidates
+
+
+def _bootstrap_remote_worker() -> None:
+    """Restore or merge from GitHub without blocking app startup."""
+    global _LAST_BOOTSTRAP
+    remote = fetch_remote_snapshot()
+    if not remote or not _has_data(remote):
+        return
+    try:
+        with _LOCK:
+            local_candidates = _local_bootstrap_candidates()
+            if local_candidates:
+                _, local_best = max(local_candidates, key=lambda item: _data_score(item[1]))
+                if _data_score(remote) <= _data_score(local_best):
+                    return
+            elif _local_has_data():
+                return
+            apply_snapshot(remote)
+            save_local_snapshot()
+            maybe_sync_remote(force=True)
+            _LAST_BOOTSTRAP = {
+                "status": "restored",
+                "source": "remote",
+                "clients": len(remote.get("clients") or []),
+                "calls": len(remote.get("calls") or []),
+                "remote_configured": True,
+                "persistence": persistence_info(),
+            }
+        print(f"[atlas] remote bootstrap: {_LAST_BOOTSTRAP}", flush=True)
+    except Exception as exc:
+        print(f"[atlas] remote bootstrap failed: {exc}", flush=True)
+
+
+def _start_remote_bootstrap() -> None:
+    if not _github_config() and not os.getenv("ATLAS_BACKUP_URL", "").strip():
+        return
+    threading.Thread(
+        target=_bootstrap_remote_worker,
+        daemon=True,
+        name="atlas-bootstrap-remote",
+    ).start()
+
+
 def bootstrap() -> dict:
     global _BOOTSTRAP_DONE, _LAST_BOOTSTRAP
     if _BOOTSTRAP_DONE:
@@ -275,44 +344,20 @@ def bootstrap() -> dict:
     _BOOTSTRAP_DONE = True
 
     with _LOCK:
-        candidates: list[tuple[str, dict]] = []
-
-        if _local_has_data():
-            local_db = build_snapshot()
-            if _has_data(local_db):
-                candidates.append(("local_db", local_db))
-
-        local_file = load_local_snapshot()
-        if local_file and _has_data(local_file):
-            candidates.append(("local_snapshot", local_file))
-
-        remote = fetch_remote_snapshot()
-        if remote and _has_data(remote):
-            candidates.append(("remote", remote))
-
-        if not candidates:
-            _LAST_BOOTSTRAP = {
-                "status": "empty",
-                "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
-                "persistence": persistence_info(),
-            }
+        candidates = _local_bootstrap_candidates()
+        if candidates:
+            source, best = max(candidates, key=lambda item: _data_score(item[1]))
+            _LAST_BOOTSTRAP = _apply_best_snapshot(source, best)
+            _start_remote_bootstrap()
             return _LAST_BOOTSTRAP
 
-        source, best = max(candidates, key=lambda item: _data_score(item[1]))
-
-        if source != "local_db":
-            apply_snapshot(best)
-
-        save_local_snapshot()
-        maybe_sync_remote(force=True)
         _LAST_BOOTSTRAP = {
-            "status": "ok" if source == "local_db" else "restored",
-            "source": source,
-            "clients": len(best.get("clients") or []),
-            "calls": len(best.get("calls") or []),
+            "status": "empty",
+            "remote_pending": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
             "remote_configured": bool(_github_config() or os.getenv("ATLAS_BACKUP_URL")),
             "persistence": persistence_info(),
         }
+        _start_remote_bootstrap()
         return _LAST_BOOTSTRAP
 
 
@@ -342,13 +387,15 @@ def start_recovery_loop() -> None:
 
     def _loop() -> None:
         global _LAST_BOOTSTRAP
+        # First check soon after boot; then poll slowly.
+        time.sleep(8)
         while True:
-            time.sleep(RECOVERY_POLL_SEC)
             try:
                 if _local_has_data():
                     return
                 remote = fetch_remote_snapshot()
                 if not remote or not _has_data(remote):
+                    time.sleep(RECOVERY_POLL_SEC)
                     continue
                 with _LOCK:
                     if _local_has_data():
@@ -364,7 +411,7 @@ def start_recovery_loop() -> None:
                 print(f"[atlas] storage recovery: {_LAST_BOOTSTRAP}", flush=True)
                 return
             except Exception:
-                pass
+                time.sleep(RECOVERY_POLL_SEC)
 
     threading.Thread(target=_loop, daemon=True, name="atlas-recovery").start()
 
