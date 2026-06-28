@@ -9,7 +9,7 @@ import json
 import re
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -263,6 +263,73 @@ def _stats_from_rows(rows: list[sqlite3.Row]) -> dict:
     }
 
 
+def _parse_logged_at(raw: str | None) -> datetime | None:
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def _week_start(dt: datetime) -> datetime:
+    d = dt.astimezone(timezone.utc)
+    return (d - timedelta(days=d.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+
+def dashboard_chart_data(rows: list[sqlite3.Row]) -> dict:
+    """Aggregates for dashboard SVG charts."""
+    outcome_order = (
+        "client", "preview", "callback", "not_interested", "no_answer",
+    )
+    outcome_counts: dict[str, int] = {k: 0 for k in outcome_order}
+    for row in rows:
+        key = row["outcome"]
+        if key == "interested":
+            key = "preview"
+        if key in outcome_counts:
+            outcome_counts[key] += 1
+
+    outcomes = [
+        {
+            "key": key,
+            "label": OUTCOME_LABELS.get(key, key),
+            "value": outcome_counts[key],
+        }
+        for key in outcome_order
+        if outcome_counts[key] > 0
+    ]
+
+    now = datetime.now(timezone.utc)
+    calls_by_week: list[dict] = []
+    for offset in range(7, -1, -1):
+        start = _week_start(now) - timedelta(weeks=offset)
+        end = start + timedelta(days=7)
+        week_calls = 0
+        week_clients = 0
+        for row in rows:
+            logged = _parse_logged_at(row["logged_at"])
+            if logged is None:
+                continue
+            logged = logged.astimezone(timezone.utc)
+            if start <= logged < end:
+                week_calls += 1
+                if row["outcome"] == "client":
+                    week_clients += 1
+        calls_by_week.append({
+            "label": start.strftime("%b %d"),
+            "calls": week_calls,
+            "clients": week_clients,
+        })
+
+    return {
+        "outcomes": outcomes,
+        "calls_by_week": calls_by_week,
+    }
+
+
 def dashboard_stats() -> dict:
     with _DB_LOCK:
         conn = _conn()
@@ -305,6 +372,7 @@ def dashboard_stats() -> dict:
             {"city": c, **data} for c, data in top_cities
         ],
         "recent": [_row_to_dict(r) for r in recent],
+        "charts": dashboard_chart_data(rows),
     }
 
 

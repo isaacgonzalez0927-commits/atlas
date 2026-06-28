@@ -242,6 +242,31 @@ export function getDemoDashboard() {
       { business_name: 'Lakeland Air Pros', outcome: 'no_answer', outcome_label: 'No Answer', city: 'Lakeland, FL', score: 68 },
       { business_name: 'Palm Beach HVAC', outcome: 'preview', outcome_label: 'Preview', city: 'West Palm Beach, FL', score: 79 },
     ],
+    charts: {
+      outcomes: [
+        { key: 'no_answer', label: 'No Answer', value: 62 },
+        { key: 'not_interested', label: 'Not Interested', value: 48 },
+        { key: 'callback', label: 'Call Back', value: 31 },
+        { key: 'preview', label: 'Preview', value: 24 },
+        { key: 'client', label: 'Client', value: 14 },
+      ],
+      calls_by_week: [
+        { label: 'May 5', calls: 18, clients: 1 },
+        { label: 'May 12', calls: 22, clients: 2 },
+        { label: 'May 19', calls: 24, clients: 1 },
+        { label: 'May 26', calls: 20, clients: 2 },
+        { label: 'Jun 2', calls: 26, clients: 3 },
+        { label: 'Jun 9', calls: 28, clients: 2 },
+        { label: 'Jun 16', calls: 24, clients: 2 },
+        { label: 'Jun 23', calls: 24, clients: 1 },
+      ],
+      client_pipeline: [
+        { key: 'live', label: 'Live', value: 8 },
+        { key: 'building', label: 'Building', value: 3 },
+        { key: 'waiting_on_client', label: 'Waiting On Client', value: 2 },
+        { key: 'onboarding', label: 'Onboarding', value: 1 },
+      ],
+    },
     learning: { active: true, total_calls: 186, openai_enabled: true, openai_min_calls: 25 },
     storage: { clients_in_db: 14, calls_in_db: 186, remote: 'github' },
   };

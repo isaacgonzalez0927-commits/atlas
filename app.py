@@ -89,6 +89,23 @@ def api_dashboard():
     active_clients = sum(
         1 for c in clients if c.get("status") in ("onboarding", "building", "waiting_on_client")
     )
+    status_labels = {
+        "onboarding": "Onboarding",
+        "waiting_on_client": "Waiting On Client",
+        "building": "Building",
+        "live": "Live",
+    }
+    pipeline_counts: dict[str, int] = {k: 0 for k in status_labels}
+    for c in clients:
+        st = c.get("status") or "onboarding"
+        if st in pipeline_counts:
+            pipeline_counts[st] += 1
+    client_pipeline = [
+        {"key": k, "label": status_labels[k], "value": pipeline_counts[k]}
+        for k in ("live", "building", "waiting_on_client", "onboarding")
+        if pipeline_counts[k] > 0
+    ]
+
     total_leads = lead_stats.get("total", 0)
     called = total_leads
     previews = lead_stats.get("previews", 0)
@@ -111,6 +128,10 @@ def api_dashboard():
             "interest_rate": lead_stats.get("interest_rate", 0),
         },
         "recent_calls": lead_stats.get("recent", [])[:8],
+        "charts": {
+            **(lead_stats.get("charts") or {}),
+            "client_pipeline": client_pipeline,
+        },
         "learning": learning_status(),
         "storage": storage.status(),
     })

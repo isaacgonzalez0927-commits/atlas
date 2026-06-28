@@ -38,6 +38,7 @@ import {
   initLeadsPageData,
 } from './leads.js';
 import { withIcon, hydrateIcons } from './icons.js';
+import { renderDashboardCharts } from './charts.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -199,6 +200,7 @@ function renderDashboardHtml(dash) {
       <div class="card"><div class="num">${clients.open_requests ?? 0}</div><div class="lbl">Open Updates</div></div>
       <div class="card"><div class="num">${clients.active ?? 0}</div><div class="lbl">Active Clients</div></div>
     </div>
+    ${renderDashboardCharts(dash?.charts)}
     <div class="panel">
       <h2>Recent Calls</h2>
       ${(dash?.recent_calls || []).length ? (dash.recent_calls).map((c) => `
