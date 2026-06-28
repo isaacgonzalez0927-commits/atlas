@@ -208,8 +208,20 @@ function renderDashboardHtml(dash) {
       <h1>Dashboard</h1>
       <p>Ascend operations at a glance</p>
     </div>
+    <div class="mrr-hero">
+      <div class="mrr-hero-body">
+        <div class="mrr-hero-label">Monthly Recurring Revenue</div>
+        <div class="mrr-hero-amount">${fmtMoney(clients.mrr ?? 0)}</div>
+        <div class="mrr-hero-meta">${clients.paying_clients ?? 0} live ${(clients.paying_clients ?? 0) === 1 ? 'client' : 'clients'} with a monthly charge</div>
+      </div>
+      <div class="mrr-hero-aside">
+        <div class="mrr-hero-stat">
+          <div class="mrr-hero-stat-val">${fmtMoney((clients.mrr ?? 0) * 12)}</div>
+          <div class="mrr-hero-stat-lbl">Projected ARR</div>
+        </div>
+      </div>
+    </div>
     <div class="grid">
-      <div class="card card-mrr"><div class="num">${fmtMoney(clients.mrr ?? 0)}</div><div class="lbl">MRR · ${clients.paying_clients ?? 0} paying</div></div>
       <div class="card"><div class="num">${leads.total ?? 0}</div><div class="lbl">Total Leads Called</div></div>
       <div class="card"><div class="num">${leads.previews ?? 0}</div><div class="lbl">Previews</div></div>
       <div class="card"><div class="num">${leads.clients ?? 0}</div><div class="lbl">Clients Won</div></div>
