@@ -107,14 +107,46 @@ function getOutcomeForLead(lead) {
   return rec?.outcome || '';
 }
 
+function leadsResultsHtml() {
+  if (!_leads.length) {
+    return '<div class="empty">Generate a call list to get started.</div>';
+  }
+  const rows = _leads.map((l) => leadRow(l, getOutcomeForLead(l))).join('');
+  const cards = _leads.map((l) => leadCard(l, getOutcomeForLead(l))).join('');
+  return `
+    <div class="btn-row" style="margin-bottom:12px">
+      <span style="color:var(--muted);font-size:0.85rem">${_leads.length} leads ready</span>
+    </div>
+    <table class="desktop-table leads-table">
+      <thead>
+        <tr>
+          <th>Business</th><th>City</th><th>Phone</th><th>Website</th>
+          <th>Score</th><th>Reason</th><th>Outcome</th><th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="mobile-list">${cards}</div>`;
+}
+
+function bindLeadResultHandlers(root = document) {
+  root.querySelectorAll('.lead-outcome').forEach((sel) => {
+    sel.addEventListener('change', () => onOutcomeChange(sel));
+  });
+  root.querySelectorAll('[data-convert]').forEach((btn) => {
+    btn.addEventListener('click', () => onConvert(btn.dataset.convert));
+  });
+}
+
+export function updateLeadsResultsPanel() {
+  const panel = document.getElementById('leads-results');
+  if (!panel) return;
+  panel.innerHTML = leadsResultsHtml();
+  bindLeadResultHandlers(panel);
+}
+
 export function renderLeadsPage(cities = []) {
   const cityOpts = cities.map((c) => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
-  const rows = _leads.length
-    ? _leads.map((l) => leadRow(l, getOutcomeForLead(l))).join('')
-    : '';
-  const cards = _leads.length
-    ? _leads.map((l) => leadCard(l, getOutcomeForLead(l))).join('')
-    : '';
 
   return `
     <div class="page-header">
@@ -164,21 +196,7 @@ export function renderLeadsPage(cities = []) {
     </div>
 
     <div class="panel" id="leads-results">
-      ${_leads.length ? `
-        <div class="btn-row" style="margin-bottom:12px">
-          <span style="color:var(--muted);font-size:0.85rem">${_leads.length} leads ready</span>
-        </div>
-        <table class="desktop-table leads-table">
-          <thead>
-            <tr>
-              <th>Business</th><th>City</th><th>Phone</th><th>Website</th>
-              <th>Score</th><th>Reason</th><th>Outcome</th><th></th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-        <div class="mobile-list">${cards}</div>
-      ` : '<div class="empty">Generate a call list to get started.</div>'}
+      ${leadsResultsHtml()}
     </div>`;
 }
 
@@ -241,7 +259,7 @@ async function onConvert(phone) {
   }
 }
 
-export async function bindLeadsPage(onRefresh) {
+export async function bindLeadsPage() {
   const modeEl = document.getElementById('lead-mode');
   const cityWrap = document.getElementById('lead-city-wrap');
   modeEl?.addEventListener('change', () => {
@@ -288,7 +306,8 @@ export async function bindLeadsPage(onRefresh) {
             localStorage.setItem('atlas_lead_phones', JSON.stringify([...keys]));
             await refreshOutcomes();
             btn.disabled = false;
-            onRefresh();
+            status.textContent = job.message || `Ready — ${_leads.length} businesses to call.`;
+            updateLeadsResultsPanel();
           } else if (job.status === 'error') {
             clearInterval(_pollTimer);
             _pollTimer = null;
@@ -312,13 +331,7 @@ export async function bindLeadsPage(onRefresh) {
     }
   });
 
-  document.querySelectorAll('.lead-outcome').forEach((sel) => {
-    sel.addEventListener('change', () => onOutcomeChange(sel));
-  });
-
-  document.querySelectorAll('[data-convert]').forEach((btn) => {
-    btn.addEventListener('click', () => onConvert(btn.dataset.convert));
-  });
+  bindLeadResultHandlers();
 }
 
 export async function initLeadsPageData() {
@@ -329,13 +342,8 @@ export async function initLeadsPageData() {
 
   if (isDemoMode()) {
     _leads = getDemoLeads();
-    try {
-      await refreshOutcomes();
-    } catch { /* ignore */ }
-    return cities;
   }
 
-  _leads = [];
   try {
     await refreshOutcomes();
   } catch { /* ignore */ }

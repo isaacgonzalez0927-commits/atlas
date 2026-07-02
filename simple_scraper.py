@@ -389,7 +389,8 @@ def score_all_leads(leads: list[dict]) -> str:
         from learning import apply_learning
 
         return apply_learning(leads)
-    except ImportError:
+    except Exception as exc:
+        print(f"[atlas] learning skipped: {exc}")
         return ""
 
 

@@ -216,7 +216,7 @@ def _openai_batch_tweak(leads: list[dict], signals: dict) -> str:
                     {"role": "user", "content": json.dumps(payload)},
                 ],
             },
-            timeout=45,
+            timeout=20,
         )
         if not resp.ok:
             return ""
@@ -264,7 +264,11 @@ def apply_learning(leads: list[dict]) -> str:
                 lead["reason"] = f"{lead.get('reason', '')} · Learned: {note}".strip(" ·")
             adjusted += 1
 
-    ai_note = _openai_batch_tweak(leads, signals)
+    ai_note = ""
+    try:
+        ai_note = _openai_batch_tweak(leads, signals)
+    except Exception as exc:
+        print(f"[atlas] openai learning skipped: {exc}")
     leads.sort(key=lambda x: -int(x.get("score") or 0))
 
     parts = [f"Learned from {signals['total_calls']} calls"]

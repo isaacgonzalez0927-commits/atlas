@@ -667,7 +667,7 @@ async function render() {
       main.innerHTML = demoBannerHtml() + content;
       const cities = await initLeadsPageData();
       content = renderLeadsPage(cities);
-      afterRender = () => bindLeadsPage(() => render());
+      afterRender = () => bindLeadsPage();
     } else if (route[0] === 'clients' && route.length === 1) {
       content = renderClientsList();
       afterRender = () => bindClientsList();
