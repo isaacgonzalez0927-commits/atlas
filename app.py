@@ -68,10 +68,59 @@ def auto_save_after_api(response):
 
 @app.get("/api/health")
 def health():
+    google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    google_ok = bool(google_key)
+    google_message = "Configured" if google_ok else "Missing — add GOOGLE_MAPS_API_KEY in Render"
+    openai_ok = bool(openai_key)
+    openai_message = "Configured" if openai_ok else "Missing (optional — learning only)"
+
+    if google_ok:
+        try:
+            import requests
+            resp = requests.post(
+                "https://places.googleapis.com/v1/places:searchText",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": google_key,
+                    "X-Goog-FieldMask": "places.displayName",
+                },
+                json={"textQuery": "HVAC Stuart FL", "maxResultCount": 1},
+                timeout=12,
+            )
+            if resp.ok:
+                google_message = "Google Maps key valid"
+            else:
+                google_ok = False
+                google_message = f"Google Maps rejected key ({resp.status_code})"
+        except Exception as exc:
+            google_ok = False
+            google_message = f"Google Maps check failed: {exc}"
+
+    if openai_ok:
+        try:
+            import requests
+            resp = requests.get(
+                "https://api.openai.com/v1/models",
+                headers={"Authorization": f"Bearer {openai_key}"},
+                timeout=12,
+            )
+            if resp.ok:
+                openai_message = "OpenAI key valid"
+            else:
+                openai_ok = False
+                openai_message = f"OpenAI rejected key ({resp.status_code})"
+        except Exception as exc:
+            openai_ok = False
+            openai_message = f"OpenAI check failed: {exc}"
+
     return jsonify({
         "ok": True,
         "auth_required": bool(ATLAS_CODE),
-        "google_maps_configured": bool(os.getenv("GOOGLE_MAPS_API_KEY", "").strip()),
+        "google_maps_configured": google_ok,
+        "google_maps_message": google_message,
+        "openai_configured": openai_ok,
+        "openai_message": openai_message,
         "boot": storage.status().get("last_bootstrap"),
     })
 
